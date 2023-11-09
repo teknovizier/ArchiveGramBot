@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="album py-5 bg-body-tertiary">
+    <div class="container">
+
+      <div class="row row-cols-1 row-cols-sm-2 row-cols-md-1 g-3 justify-content-md-center">
+
+        {% for post in channel.posts %}
+        <div class="col col-md-8" id="post-{{ post.id }}">
+          <div class="card shadow-sm">
+            {% for photo in post.photos %}
+            <a href="gallery/{{ photo }}"><img src="gallery/{{ photo }}" width="100%" class="mb-1"></a>
+            {% endfor %}
+            <div class="card-body">
+              <p class="card-text">
+                {{ post.text | linebreaksbr | safe }}
+              </p>
+              {% if post.url or post.date %}
+              <div class="d-flex justify-content-between align-items-center">
+                {% if post.url %}
+                <small class="text-body-secondary"><a href="{{ post.url | safe }}">View in channel</a></small>
+                {% else %}
+                &nbsp;
+                {% endif %}
+                {% if post.date %}
+                <small class="text-body-secondary">{{ post.date }}</small>
+                {% else %}
+                &nbsp;
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+
+      </div>
+    </div>
+  </div>
+{% endblock content %}

@@ -1,0 +1,4 @@
+teloxide_token = "<Your token here>"
+data_folder = "<Your path to data folder here>"
+result_folder = "<Your path to result folder here>"
+log_path = "log.txt"
