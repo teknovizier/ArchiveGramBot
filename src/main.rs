@@ -35,11 +35,12 @@ pub fn main() {
     .start();
     info!("Starting ArchiveGram...");
 
-    // Use dummy user ID for now
+    // Use dummy user ID and album ID for now
     let user_id = 1;
-    let _ = match generate_albums(user_id, &config.data_folder, &config.result_folder) {
+    let album_id = 1;
+    match generate_albums(album_id, user_id, &config.data_folder, &config.result_folder) {
         Ok(c) => { info!("Successfully generated {} albums.", c)},
-        Err(e) => { error!("Error generating albums: {}", e) }
+        Err(e) => { error!("Error generating albums: {}!", e) }
     };
 
     info!("Stopping ArchiveGram...");

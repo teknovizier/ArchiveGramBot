@@ -13,7 +13,7 @@ pub struct TelegramData {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct TelegramChannel {
+pub struct TelegramChannel {
     id: u64,
     name: String,
     desc: String,
@@ -65,7 +65,18 @@ fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &s
     Ok(())
 }
 
-pub fn generate_albums(user_id: u32, data_folder: &str, result_folder: &str) -> Result<u32, Box<dyn Error>> {
+pub fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(), Box<dyn Error>> {
+    let mut context = Context::new();
+    context.insert("channel", &channel);
+    let data = tera.render("content.html", &context)?;
+    let album_folder = Path::new(result_folder).join(user_id.to_string()).join(channel.id.to_string());
+    let src_media_folder = Path::new(data_folder).join(user_id.to_string()).join(channel.id.to_string());
+    create_html_file(&album_folder, &src_media_folder, &data)?;
+
+    Ok(())
+}
+
+pub fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, result_folder: &str) -> Result<u64, Box<dyn Error>> {
     // Read the file contents
     let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
     let mut json_data = String::new();
@@ -74,17 +85,38 @@ pub fn generate_albums(user_id: u32, data_folder: &str, result_folder: &str) -> 
     let telegram_data: TelegramData = serde_json::from_str(&json_data)?;
     
     // Generate albums
-    let mut counter = 0;
+    let mut counter: u64 = 0;
     let tera = Tera::new("templates/**/*.html")?;
-    for channel in telegram_data.channels.iter() {
-        let mut context = Context::new();
-        context.insert("channel", &channel);
-        let data = tera.render("content.html", &context)?;
-        let album_folder = Path::new(result_folder).join(user_id.to_string()).join(channel.id.to_string());
-        let src_media_folder = Path::new(data_folder).join(user_id.to_string()).join(channel.id.to_string());
-        create_html_file(&album_folder, &src_media_folder, &data)?;
-        counter += 1;
-        info!("Successfully generated album #{}.", channel.id);
+
+    // Check if album exists
+    let album_exists = &telegram_data.channels.iter().any(|channel| channel.id == album_id);
+    if album_id != 0 && !(*album_exists) {
+        error!("Album #{} doesn't exist!", album_id);
+    }
+    else {
+        for channel in telegram_data.channels.iter() {
+            if album_id == 0 || album_id == channel.id {
+                match generate_single_album(&tera, channel, user_id, data_folder, result_folder) {
+                    Ok(()) => {
+                        info!("Successfully generated album #{}.", channel.id);
+                        counter += 1;
+                    },
+                    Err(e) => {
+                        error!("Error generating album #{}: {}.", channel.id, e);
+                    }
+                };
+
+                if album_id == channel.id {
+                    // If the required album is generated, break the loop
+                    break;
+                }
+            }
+        }
+    }
+
+    if counter == 0 {
+        // Return an error if counter is 0
+        return Err("no albums have been generated".into());
     }
 
     Ok(counter)
