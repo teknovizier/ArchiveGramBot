@@ -76,7 +76,7 @@ pub fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u6
     Ok(())
 }
 
-pub fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, result_folder: &str) -> Result<u64, Box<dyn Error>> {
+pub async fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, result_folder: &str) -> Result<u64, Box<dyn Error>> {
     // Read the file contents
     let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
     let mut json_data = String::new();
@@ -98,11 +98,11 @@ pub fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, result_fo
             if album_id == 0 || album_id == channel.id {
                 match generate_single_album(&tera, channel, user_id, data_folder, result_folder) {
                     Ok(()) => {
-                        info!("Successfully generated album #{}.", channel.id);
+                        info!("Successfully generated album #{} for user {}.", channel.id, user_id);
                         counter += 1;
                     },
                     Err(e) => {
-                        error!("Error generating album #{}: {}.", channel.id, e);
+                        error!("Error generating album #{} for user {}: {}.", channel.id, user_id, e);
                     }
                 };
 
