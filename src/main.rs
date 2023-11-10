@@ -1,7 +1,8 @@
 use log2::*;
 use serde::Deserialize;
 use std::fs;
-use teloxide::{prelude::*, utils::command::BotCommands};
+use std::path::{PathBuf};
+use teloxide::{prelude::*, utils::command::BotCommands, types::InputFile};
 use archivegrambot as agb;
 
 #[derive(BotCommands, Clone)]
@@ -39,7 +40,6 @@ fn load_config(file: &str) -> Config {
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> ResponseResult<()> {
-    let mut counter: Option<u64> = None;
     match cmd {
         Command::Help => bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?,
         Command::ShowAlbums => {
@@ -59,34 +59,56 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> Respon
 
         }
         Command::GenerateAll => {
+            let mut counter: Option<u64> = None;
+            let mut zip_file: Option<PathBuf> = None;
+
             // Assume that user ID is the same as chat ID
             let user_id = msg.chat.id.0 as u64;
 
             // Generate all albums
             match agb::generate_albums(0, user_id, &config.data_folder, &config.result_folder).await {
-                Ok(c) => { counter = Some(c); }
+                Ok(c) => { 
+                    counter = Some(c.0);
+                    zip_file = Some(c.1);
+                }
                 Err(_) => {}
             }
 
             if let Some(counter) = counter {
-                bot.send_message(msg.chat.id, format!("Successfully generated {} albums.", counter)).await?
+                bot.send_message(msg.chat.id, format!("Successfully generated {} albums.", counter)).await?;
+                bot.send_dice(msg.chat.id).await?;
+                let input_file = InputFile::file(&zip_file.unwrap());
+                bot.send_document(msg.chat.id, input_file).await?;
+                agb::delete_contents_of_folder(&config.result_folder).await?;
+                bot.send_message(msg.chat.id, format!("")).await? 
             }
             else {
                 bot.send_message(msg.chat.id, format!("Error generating albums!")).await?
             }
         }
         Command::Generate(album_id) => {
+            let mut counter: Option<u64> = None;
+            let mut zip_file: Option<PathBuf> = None;
+
             // Assume that user ID is the same as chat ID
             let user_id = msg.chat.id.0 as u64;
 
             // Generate single album
             match agb::generate_albums(album_id, user_id, &config.data_folder, &config.result_folder).await {
-                Ok(c) => { counter = Some(c); }
+                Ok(c) => {
+                    counter = Some(c.0);
+                    zip_file = Some(c.1);
+                }
                 Err(_) => {}
             }
 
             if let Some(_) = counter {
-                bot.send_message(msg.chat.id, format!("Successfully generated album #{}.", album_id)).await?
+                bot.send_message(msg.chat.id, format!("Successfully generated album #{}.", album_id)).await?;
+                bot.send_dice(msg.chat.id).await?;
+                let input_file = InputFile::file(&zip_file.unwrap());
+                bot.send_document(msg.chat.id, input_file).await?;
+                agb::delete_contents_of_folder(&config.result_folder).await?;
+                bot.send_message(msg.chat.id, format!("")).await?
             }
             else {
                 bot.send_message(msg.chat.id, format!("Error generating album #{}!", album_id)).await?

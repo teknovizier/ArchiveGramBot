@@ -1,3 +1,4 @@
+use chrono::prelude::*;
 use log2::*;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -6,6 +7,8 @@ use std::{io, io::prelude::*};
 use std::path::{Path, PathBuf};
 use tera::Context;
 use tera::Tera;
+use zip::CompressionMethod;
+use zip::write::FileOptions;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TelegramData {
@@ -41,6 +44,52 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
             fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
         }
     }
+    Ok(())
+}
+
+fn zip_folder(folder_path: &PathBuf, result_file: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // Create a zip file
+    let file = File::create(&result_file)?;
+    let mut zip = zip::ZipWriter::new(file);
+
+    // Walk through the files in the folder
+    let options = FileOptions::default()
+        .compression_method(CompressionMethod::Stored);
+        
+    for entry in walkdir::WalkDir::new(folder_path) {
+        let entry = entry?;
+        let relative_path = entry.path().strip_prefix(folder_path)?;
+        
+        if entry.file_type().is_file() {
+            // Add each file to the zip archive
+            zip.start_file(relative_path.to_str().unwrap(), options)?;
+            let mut file = File::open(entry.path())?;
+            let mut buffer = Vec::new();
+            file.read_to_end(&mut buffer)?;
+            zip.write_all(&buffer)?;
+        }
+    }
+
+    Ok(result_file.clone())
+}
+
+pub async fn delete_contents_of_folder(folder_path: &str) -> io::Result<()> {
+    // Convert the folder path to a Path
+    let path = Path::new(folder_path);
+
+    // Iterate over the contents of the folder
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let entry_path = entry.path();
+
+        // Remove files or directories
+        if entry_path.is_file() {
+            fs::remove_file(entry_path)?;
+        } else if entry_path.is_dir() {
+            fs::remove_dir_all(entry_path)?;
+        }
+    }
+
     Ok(())
 }
 
@@ -98,7 +147,7 @@ fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, d
     Ok(())
 }
 
-pub async fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, result_folder: &str) -> Result<u64, Box<dyn Error>> {
+pub async fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(u64, PathBuf), Box<dyn Error>> {
     // Read the file contents
     let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
     let mut json_data = String::new();
@@ -141,5 +190,11 @@ pub async fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, res
         return Err("no albums have been generated".into());
     }
 
-    Ok(counter)
+    let user_folder = Path::new(result_folder).join(user_id.to_string());
+    let result_file = Path::new(result_folder).join(format!("ArchiveGramBot-Archive-{}.zip", Utc::now().format("%Y-%m-%d_%H-%M-%S")));
+
+    // Safely use unwrap() here as amount of albums is > 0
+    let album_zip = zip_folder(&user_folder, &result_file).unwrap();
+
+    Ok((counter, album_zip))
 }
