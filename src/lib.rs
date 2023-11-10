@@ -65,7 +65,29 @@ fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &s
     Ok(())
 }
 
-pub fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(), Box<dyn Error>> {
+pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    // Read the file contents
+    let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
+    let mut json_data = String::new();
+    file.read_to_string(&mut json_data)?;
+
+    let telegram_data: TelegramData = serde_json::from_str(&json_data)?;
+    
+    let mut channels_list: Vec<String> = Vec::new();
+    for channel in telegram_data.channels.iter() {
+        let channel_info = format!("{}) {} ({} posts)", channel.id.to_string(), channel.name, channel.posts.len().to_string());
+        channels_list.push(channel_info);
+    }
+
+    if channels_list.is_empty() {
+        error!("No albums found for user for user {}!", user_id);
+        return Err("no albums found".into());
+    }
+
+    Ok(channels_list)
+}
+
+fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(), Box<dyn Error>> {
     let mut context = Context::new();
     context.insert("channel", &channel);
     let data = tera.render("content.html", &context)?;

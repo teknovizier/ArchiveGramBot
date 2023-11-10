@@ -9,10 +9,12 @@ use archivegrambot as agb;
 enum Command {
     #[command(description = "display this text.")]
     Help,
+    #[command(description = "show identifiers and names for all available albums.")]
+    ShowAlbums,
     #[command(description = "generate all albums.")]
     GenerateAll,
-    #[command(description = "generate specified album.")]
-    GenerateSingle(u64),
+    #[command(description = "generate specified album (add album ID after `generate` command).")]
+    Generate(u64),
 }
 #[derive(Debug, Deserialize, Clone)]
 struct Config {
@@ -40,6 +42,22 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> Respon
     let mut counter: Option<u64> = None;
     match cmd {
         Command::Help => bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?,
+        Command::ShowAlbums => {
+            let user_id = msg.chat.id.0 as u64;
+            let mut albums: Option<Vec<String>> = None;
+            match agb::get_album_descriptions(user_id, &config.data_folder).await {
+                Ok(a) => { albums = Some(a); }
+                Err(_) => {}
+            }
+
+            if let Some(albums) = albums {
+                bot.send_message(msg.chat.id, format!("Available albums:\n\n{}", albums.join("\n"))).await?
+            }
+            else {
+                bot.send_message(msg.chat.id, format!("No albums found!")).await?
+            }
+
+        }
         Command::GenerateAll => {
             // Assume that user ID is the same as chat ID
             let user_id = msg.chat.id.0 as u64;
@@ -57,7 +75,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> Respon
                 bot.send_message(msg.chat.id, format!("Error generating albums!")).await?
             }
         }
-        Command::GenerateSingle(album_id) => {
+        Command::Generate(album_id) => {
             // Assume that user ID is the same as chat ID
             let user_id = msg.chat.id.0 as u64;
 
@@ -90,7 +108,7 @@ async fn main() {
     .start();
     info!("Starting bot...");
 
-    let bot = Bot::new(&config.teloxide_token); 
+    let bot = Bot::new(&config.teloxide_token);
     Command::repl(bot, move |bot, msg, cmd| {
         let config = config.clone();
         async move {
