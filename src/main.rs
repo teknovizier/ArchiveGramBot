@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use teloxide::{prelude::*, utils::command::BotCommands, types::InputFile};
 use archivegrambot as agb;
+type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 pub mod utils;
 
@@ -41,83 +42,90 @@ fn load_config(file: &str) -> Config {
     return config;
 }
 
-async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> ResponseResult<()> {
-    match cmd {
-        Command::Help => bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?,
-        Command::ShowAlbums => {
-            let user_id = msg.chat.id.0 as u64;
-            let mut albums: Option<Vec<String>> = None;
-            match agb::get_album_descriptions(user_id, &config.data_folder).await {
-                Ok(a) => { albums = Some(a); }
-                Err(_) => {}
-            }
+async fn help(bot: Bot, msg: Message) -> HandlerResult {
+    bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?;
+    Ok(())
+}
 
-            if let Some(albums) = albums {
-                bot.send_message(msg.chat.id, format!("Available albums:\n\n{}", albums.join("\n"))).await?
-            }
-            else {
-                bot.send_message(msg.chat.id, format!("No albums found!")).await?
-            }
+async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    let user_id = msg.chat.id.0 as u64;
+    let mut albums: Option<Vec<String>> = None;
+    match agb::get_album_descriptions(user_id, &config.data_folder).await {
+        Ok(a) => { albums = Some(a); }
+        Err(_) => {}
+    }
 
+    if let Some(albums) = albums {
+        bot.send_message(msg.chat.id, format!("Available albums:\n\n{}", albums.join("\n"))).await?;
+    }
+    else {
+        bot.send_message(msg.chat.id, format!("No albums found!")).await?;
+    }
+
+    Ok(())
+}
+
+async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    let mut counter: Option<u64> = None;
+    let mut zip_file: Option<PathBuf> = None;
+
+    // Assume that user ID is the same as chat ID
+    let user_id = msg.chat.id.0 as u64;
+
+    // Generate all albums
+    match agb::generate_albums(0, user_id, &config.data_folder, &config.result_folder).await {
+        Ok(c) => { 
+            counter = Some(c.0);
+            zip_file = Some(c.1);
         }
-        Command::GenerateAll => {
-            let mut counter: Option<u64> = None;
-            let mut zip_file: Option<PathBuf> = None;
+        Err(_) => {}
+    }
 
-            // Assume that user ID is the same as chat ID
-            let user_id = msg.chat.id.0 as u64;
+    if let Some(counter) = counter {
+        bot.send_message(msg.chat.id, format!("Successfully generated {} albums.", counter)).await?;
+        bot.send_dice(msg.chat.id).await?;
+        let input_file = InputFile::file(&zip_file.unwrap());
+        bot.send_document(msg.chat.id, input_file).await?;
+        utils::delete_contents_of_folder(&config.result_folder).await?;
+    }
+    else {
+        bot.send_message(msg.chat.id, format!("Error generating albums!")).await?;
+    }
 
-            // Generate all albums
-            match agb::generate_albums(0, user_id, &config.data_folder, &config.result_folder).await {
-                Ok(c) => { 
-                    counter = Some(c.0);
-                    zip_file = Some(c.1);
-                }
-                Err(_) => {}
-            }
+    Ok(())
+}
 
-            if let Some(counter) = counter {
-                bot.send_message(msg.chat.id, format!("Successfully generated {} albums.", counter)).await?;
-                bot.send_dice(msg.chat.id).await?;
-                let input_file = InputFile::file(&zip_file.unwrap());
-                bot.send_document(msg.chat.id, input_file).await?;
-                utils::delete_contents_of_folder(&config.result_folder).await?;
-                bot.send_message(msg.chat.id, format!("")).await? 
-            }
-            else {
-                bot.send_message(msg.chat.id, format!("Error generating albums!")).await?
-            }
+async fn generate(bot: Bot, msg: Message, config: &Config, album_id: u64) -> HandlerResult {
+    let mut counter: Option<u64> = None;
+    let mut zip_file: Option<PathBuf> = None;
+
+    // Assume that user ID is the same as chat ID
+    let user_id = msg.chat.id.0 as u64;
+
+    // Generate single album
+    match agb::generate_albums(album_id, user_id, &config.data_folder, &config.result_folder).await {
+        Ok(c) => {
+            counter = Some(c.0);
+            zip_file = Some(c.1);
         }
-        Command::Generate(album_id) => {
-            let mut counter: Option<u64> = None;
-            let mut zip_file: Option<PathBuf> = None;
+        Err(_) => {}
+    }
 
-            // Assume that user ID is the same as chat ID
-            let user_id = msg.chat.id.0 as u64;
+    if let Some(_) = counter {
+        bot.send_message(msg.chat.id, format!("Successfully generated album #{}.", album_id)).await?;
+        bot.send_dice(msg.chat.id).await?;
+        let input_file = InputFile::file(&zip_file.unwrap());
+        bot.send_document(msg.chat.id, input_file).await?;
+        utils::delete_contents_of_folder(&config.result_folder).await?;
+    }
+    else {
+        bot.send_message(msg.chat.id, format!("Error generating album #{}!", album_id)).await?;
+    }
 
-            // Generate single album
-            match agb::generate_albums(album_id, user_id, &config.data_folder, &config.result_folder).await {
-                Ok(c) => {
-                    counter = Some(c.0);
-                    zip_file = Some(c.1);
-                }
-                Err(_) => {}
-            }
+    Ok(())
+}
 
-            if let Some(_) = counter {
-                bot.send_message(msg.chat.id, format!("Successfully generated album #{}.", album_id)).await?;
-                bot.send_dice(msg.chat.id).await?;
-                let input_file = InputFile::file(&zip_file.unwrap());
-                bot.send_document(msg.chat.id, input_file).await?;
-                utils::delete_contents_of_folder(&config.result_folder).await?;
-                bot.send_message(msg.chat.id, format!("")).await?
-            }
-            else {
-                bot.send_message(msg.chat.id, format!("Error generating album #{}!", album_id)).await?
-            }
-        }
-    };
-
+async fn reply(bot: Bot, msg: Message) -> HandlerResult {
     Ok(())
 }
 
@@ -130,15 +138,49 @@ async fn main() {
     .module(false)
     .level("info")
     .start();
+
     info!("Starting bot...");
 
     let bot = Bot::new(&config.teloxide_token);
-    Command::repl(bot, move |bot, msg, cmd| {
-        let config = config.clone();
-        async move {
-            answer(bot, msg, cmd, &config).await
-        }
-    }).await;
+
+    let command_handler = teloxide::filter_command::<Command, _>()
+        .branch(dptree::case![Command::Help].endpoint(help))
+        .branch(dptree::case![Command::ShowAlbums].endpoint({
+            let config = config.clone();
+            move |bot, msg| {
+                let config = config.clone();
+                async move { showalbums(bot, msg, &config).await }
+            }
+        }))
+        .branch(dptree::case![Command::GenerateAll].endpoint({
+            let config = config.clone();
+            move |bot, msg| {
+                let config = config.clone();
+                async move { generateall(bot, msg, &config).await }
+            }
+        }))
+        .branch(dptree::case![Command::Generate(album_id)].endpoint({
+            let config = config.clone();
+            move |bot, msg, album_id| {
+                let config = config.clone();
+                async move { generate(bot, msg, &config, album_id).await }
+            }
+        }));
+
+    let handler = Update::filter_message()
+        .branch(command_handler)
+        .branch(
+            dptree::filter(|msg: Message| {
+                msg.chat.id != ChatId(0)
+            })
+            .endpoint(reply));
+
+    Dispatcher::builder(bot, handler)
+        .enable_ctrlc_handler()
+        .build()
+        .dispatch()
+        .await;
 
     info!("Stopping bot...");
+
 }
