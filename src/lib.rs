@@ -7,8 +7,8 @@ use std::{io, io::prelude::*};
 use std::path::{Path, PathBuf};
 use tera::Context;
 use tera::Tera;
-use zip::CompressionMethod;
-use zip::write::FileOptions;
+
+pub mod utils;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TelegramData {
@@ -33,66 +33,6 @@ struct TelegramPost {
     videos: Vec<String>,
 }
 
-fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
-    fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        if ty.is_dir() {
-            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        } else {
-            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        }
-    }
-    Ok(())
-}
-
-fn zip_folder(folder_path: &PathBuf, result_file: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    // Create a zip file
-    let file = File::create(&result_file)?;
-    let mut zip = zip::ZipWriter::new(file);
-
-    // Walk through the files in the folder
-    let options = FileOptions::default()
-        .compression_method(CompressionMethod::Stored);
-        
-    for entry in walkdir::WalkDir::new(folder_path) {
-        let entry = entry?;
-        let relative_path = entry.path().strip_prefix(folder_path)?;
-        
-        if entry.file_type().is_file() {
-            // Add each file to the zip archive
-            zip.start_file(relative_path.to_str().unwrap(), options)?;
-            let mut file = File::open(entry.path())?;
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer)?;
-            zip.write_all(&buffer)?;
-        }
-    }
-
-    Ok(result_file.clone())
-}
-
-pub async fn delete_contents_of_folder(folder_path: &str) -> io::Result<()> {
-    // Convert the folder path to a Path
-    let path = Path::new(folder_path);
-
-    // Iterate over the contents of the folder
-    for entry in fs::read_dir(path)? {
-        let entry = entry?;
-        let entry_path = entry.path();
-
-        // Remove files or directories
-        if entry_path.is_file() {
-            fs::remove_file(entry_path)?;
-        } else if entry_path.is_dir() {
-            fs::remove_dir_all(entry_path)?;
-        }
-    }
-
-    Ok(())
-}
-
 fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &str) -> io::Result<()> {
     let src_css = Path::new("templates").join("css");
     let src_img = Path::new("templates").join("img");
@@ -102,11 +42,11 @@ fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &s
     let dst_media_folder = album_folder.join("gallery");
 
     // Copy the 'css' and 'img' folder
-    copy_dir_all(&src_css, &dst_css)?;
-    copy_dir_all(&src_img, &dst_img)?;
+    utils::copy_dir_all(&src_css, &dst_css)?;
+    utils::copy_dir_all(&src_img, &dst_img)?;
 
     // Copy the media folder
-    copy_dir_all(&src_media_folder, &dst_media_folder)?;
+    utils::copy_dir_all(&src_media_folder, &dst_media_folder)?;
 
     let file_name = album_folder.join("index.html");
     fs::write(&file_name, &data)?;
@@ -194,7 +134,7 @@ pub async fn generate_albums(album_id: u64, user_id: u64, data_folder: &str, res
     let result_file = Path::new(result_folder).join(format!("ArchiveGramBot-Archive-{}.zip", Utc::now().format("%Y-%m-%d_%H-%M-%S")));
 
     // Safely use unwrap() here as amount of albums is > 0
-    let album_zip = zip_folder(&user_folder, &result_file).unwrap();
+    let album_zip = utils::zip_folder(&user_folder, &result_file).unwrap();
 
     Ok((counter, album_zip))
 }

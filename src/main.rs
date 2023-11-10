@@ -1,9 +1,11 @@
 use log2::*;
 use serde::Deserialize;
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use teloxide::{prelude::*, utils::command::BotCommands, types::InputFile};
 use archivegrambot as agb;
+
+pub mod utils;
 
 #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase", description = "These commands are supported:")]
@@ -79,7 +81,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> Respon
                 bot.send_dice(msg.chat.id).await?;
                 let input_file = InputFile::file(&zip_file.unwrap());
                 bot.send_document(msg.chat.id, input_file).await?;
-                agb::delete_contents_of_folder(&config.result_folder).await?;
+                utils::delete_contents_of_folder(&config.result_folder).await?;
                 bot.send_message(msg.chat.id, format!("")).await? 
             }
             else {
@@ -107,7 +109,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, config: &Config) -> Respon
                 bot.send_dice(msg.chat.id).await?;
                 let input_file = InputFile::file(&zip_file.unwrap());
                 bot.send_document(msg.chat.id, input_file).await?;
-                agb::delete_contents_of_folder(&config.result_folder).await?;
+                utils::delete_contents_of_folder(&config.result_folder).await?;
                 bot.send_message(msg.chat.id, format!("")).await?
             }
             else {
