@@ -18,11 +18,11 @@ enum Command {
     #[command(description = "generate all albums.")]
     GenerateAll,
     #[command(description = "generate specified album (add album ID after `generate` command).")]
-    Generate(u64),
+    Generate(i64),
     #[command(description = "delete all albums.")]
     DeleteAll,
     #[command(description = "delete specified album (add album ID after `delete` command).")]
-    Delete(u64),
+    Delete(i64),
 }
 #[derive(Debug, Deserialize, Clone)]
 struct Config {
@@ -99,7 +99,7 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     Ok(())
 }
 
-async fn generate(bot: Bot, msg: Message, config: &Config, album_id: u64) -> HandlerResult {
+async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
     let mut counter: Option<u64> = None;
     let mut zip_file: Option<PathBuf> = None;
 
@@ -150,7 +150,7 @@ async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     Ok(())
 }
 
-async fn delete(bot: Bot, msg: Message, config: &Config, album_id: u64) -> HandlerResult {
+async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
     let user_id = msg.chat.id.0 as u64;
     let mut ok_string: Option<&str> = None;
 
@@ -171,7 +171,24 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: u64) -> Handl
     Ok(())
 }
 
-async fn reply(bot: Bot, msg: Message) -> HandlerResult {
+async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    let chat_id = msg.chat.id.clone();
+    let mut ok_string: Option<&str> = None;
+
+    match agb::add_new_post(msg, &config.data_folder).await {
+        Ok(_) => {
+            ok_string = Some("Message added to archive.");
+        }
+        Err(_e) => {}
+    }
+
+    if let Some(ok) = ok_string {
+        bot.send_message(chat_id, format!("{}", ok)).await?;
+    }
+    else {
+        bot.send_message(chat_id, format!("Error adding message! Please contact bot owners!")).await?;
+    }
+
     Ok(())
 }
 
@@ -233,7 +250,13 @@ async fn main() {
             dptree::filter(|msg: Message| {
                 msg.chat.id != ChatId(0)
             })
-            .endpoint(reply));
+            .endpoint({
+                let config = config.clone();
+                move |bot, msg| {
+                    let config = config.clone();
+                    async move { reply(bot, msg, &config).await }
+                }
+            }));
 
     Dispatcher::builder(bot, handler)
         .enable_ctrlc_handler()

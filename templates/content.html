@@ -16,10 +16,10 @@
               <p class="card-text">
                 {{ post.text | linebreaksbr | safe }}
               </p>
-              {% if post.url or post.date %}
+              {% if channel.username or post.date %}
               <div class="d-flex justify-content-between align-items-center">
-                {% if post.url %}
-                <small class="text-body-secondary"><a href="{{ post.url | safe }}">View in channel</a></small>
+                {% if channel.username %}
+                <small class="text-body-secondary"><a href="https://t.me/{{ channel.username }}/{{ post.id }}">View in channel</a></small>
                 {% else %}
                 &nbsp;
                 {% endif %}
