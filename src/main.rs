@@ -19,6 +19,10 @@ enum Command {
     GenerateAll,
     #[command(description = "generate specified album (add album ID after `generate` command).")]
     Generate(u64),
+    #[command(description = "delete all albums.")]
+    DeleteAll,
+    #[command(description = "delete specified album (add album ID after `delete` command).")]
+    Delete(u64),
 }
 #[derive(Debug, Deserialize, Clone)]
 struct Config {
@@ -125,6 +129,48 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: u64) -> Han
     Ok(())
 }
 
+async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    let user_id = msg.chat.id.0 as u64;
+    let mut ok_string: Option<&str> = None;
+
+    match agb::delete_user_folders(user_id, &config.data_folder).await {
+        Ok(_) => {
+            ok_string = Some("All data deleted.");
+        }
+        Err(_e) => {}
+    }
+
+    if let Some(_) = ok_string {
+        bot.send_message(msg.chat.id, format!("All data deleted.")).await?;
+    }
+    else {
+        bot.send_message(msg.chat.id, format!("Error deleting data. Please contact bot owners!")).await?;
+    }
+
+    Ok(())
+}
+
+async fn delete(bot: Bot, msg: Message, config: &Config, album_id: u64) -> HandlerResult {
+    let user_id = msg.chat.id.0 as u64;
+    let mut ok_string: Option<&str> = None;
+
+    match agb::delete_user_album(album_id, user_id, &config.data_folder).await {
+        Ok(_) => {
+            ok_string = Some("All data deleted.");
+        }
+        Err(_e) => {}
+    }
+
+    if let Some(_) = ok_string {
+        bot.send_message(msg.chat.id, format!("Album #{} deleted.", album_id)).await?;
+    }
+    else {
+        bot.send_message(msg.chat.id, format!("Error deleting album. Please check album ID and/or contact bot owners!")).await?;
+    }
+
+    Ok(())
+}
+
 async fn reply(bot: Bot, msg: Message) -> HandlerResult {
     Ok(())
 }
@@ -164,6 +210,20 @@ async fn main() {
             move |bot, msg, album_id| {
                 let config = config.clone();
                 async move { generate(bot, msg, &config, album_id).await }
+            }
+        }))
+        .branch(dptree::case![Command::DeleteAll].endpoint({
+            let config = config.clone();
+            move |bot, msg| {
+                let config = config.clone();
+                async move { deleteall(bot, msg, &config).await }
+            }
+        }))
+        .branch(dptree::case![Command::Delete(album_id)].endpoint({
+            let config = config.clone();
+            move |bot, msg, album_id| {
+                let config = config.clone();
+                async move { delete(bot, msg, &config, album_id).await }
             }
         }));
 

@@ -54,6 +54,60 @@ fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &s
     Ok(())
 }
 
+pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<(), Box<dyn Error>> {
+    let user_folder = Path::new(data_folder).join(user_id.to_string());
+
+    // Attempt to remove the specified folder and its contents
+    match fs::remove_dir_all(user_folder) {
+        Ok(_) => {
+            info!("All user data for user {} successfully deleted.", user_id);
+        },
+        Err(e) => {
+            error!("Error deleting user data for user {}: {}", user_id, e);
+            return Err("error deleting data. Please contact bot owners".into())
+        } 
+    }
+
+    Ok(())
+}
+
+pub async fn delete_user_album(album_id: u64, user_id: u64, data_folder: &str) -> Result<(), Box<dyn Error>> {
+    let file_path = Path::new(data_folder).join(user_id.to_string()).join("data.json");
+    let album_folder = Path::new(data_folder).join(user_id.to_string()).join(album_id.to_string());
+
+    // Attempt to remove the specified folder and its contents
+    match fs::remove_dir_all(album_folder) {
+        Ok(_) => {
+            info!("Album #{} for user {} successfully deleted.", album_id, user_id);
+        },
+        Err(e) => {
+            error!("Error deleting album #{} for user {}: {}", album_id, user_id, e);
+            return Err("error deleting album. Please check album ID and/or contact bot owners".into())
+        } 
+    }
+
+    // Read the file contents
+    let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
+    let mut json_data = String::new();
+    file.read_to_string(&mut json_data)?;
+
+    let mut telegram_data: TelegramData = serde_json::from_str(&json_data)?;
+
+    if let Some(index) = telegram_data.channels.iter().position(|channel| channel.id == album_id) {
+        telegram_data.channels.remove(index);
+        info!("Album #{} for user {} successfully deleted from JSON file.", album_id, user_id);
+    }
+    else {
+        error!("Error deleting album #{} info from JSON file for user {}", album_id, user_id);
+        return Err("album not found?".into());
+    }
+
+    let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
+    fs::write(file_path, updated_telegram_data)?;
+
+    Ok(())
+}
+
 pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<Vec<String>, Box<dyn Error>> {
     // Read the file contents
     let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
