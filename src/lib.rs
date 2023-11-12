@@ -39,7 +39,10 @@ struct TelegramPost {
 }
 
 impl TelegramPost {
-    async fn add_media(&mut self, bot: Bot, msg: Message, album_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+    async fn add_media(&mut self, bot: Bot, msg: Message, album_path: &PathBuf, user_folder_size: u32, max_user_folder_size: u32) -> Result<(), Box<dyn Error>> {
+        // Convert megabytes into bytes
+        let max_user_folder_size = max_user_folder_size * 1024 * 1024;
+        
         // Proceed if there is only one photo
         if let Some(photos) = msg.photo() {
             // Set post caption
@@ -48,6 +51,11 @@ impl TelegramPost {
             // Find the largest photo by comparing their sizes
             let largest_photo = photos.iter().max_by_key(|photo| photo.width * photo.height);
             if let Some(photo) = largest_photo {
+                let new_user_folder_size = photo.file.size + user_folder_size;
+                if new_user_folder_size > max_user_folder_size {
+                    error!("User #{} folder has exceeded the size limit: {} > {}", msg.from().unwrap().id.0, new_user_folder_size, max_user_folder_size);
+                    return Err("User folder has exceeded the size limit!".into())
+                }
                 match download_media_file(bot, &album_path, &photo.file.id, "jpg").await {
                     Ok(file_name) => {
                         self.photos.push(file_name.to_string());
@@ -63,6 +71,12 @@ impl TelegramPost {
             // Only MP4 videos are supported at moment
             if let Some(ref mime_type) = video.mime_type {
                 if mime_type == &Mime::from_str("video/mp4").unwrap() {
+                    let new_user_folder_size = video.file.size + user_folder_size;
+                    if new_user_folder_size > max_user_folder_size {
+                        error!("User #{} folder has exceeded the size limit: {} > {}", msg.from().unwrap().id.0, new_user_folder_size, max_user_folder_size);
+                        return Err("User folder has exceeded the size limit!".into())
+                    }
+    
                     match download_media_file(bot, &album_path, &video.file.id, "mp4").await {
                         Ok(file_name) => {
                             self.videos.push(file_name.to_string());
@@ -153,6 +167,7 @@ pub async fn delete_user_album(album_id: i64, user_id: u64, data_folder: &str) -
     let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
     fs::write(file_path, updated_telegram_data)?;
     info!("Album #{} for user #{} successfully deleted from JSON file.", album_id, user_id);
+
     Ok("Album deleted".to_string())
 }
 
@@ -250,7 +265,7 @@ async fn download_media_file(bot: Bot, album_path: &Path, file_id: &String, file
     Ok(file_name)
 }
 
-pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(), Box<dyn Error>> {
+pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str, max_user_folder_size: u32) -> Result<(), Box<dyn Error>> {
     let user_id = msg.chat.id.0 as u64;
     let album_id = msg.forward_from_chat().map_or(0, |chat| chat.id.0 as i64);
     let post_id = msg.forward_from_message_id().unwrap_or(msg.id.0 as i32);
@@ -274,8 +289,9 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
     };
 
     // Read the file contents
-    let user_path = Path::new(data_folder).join(user_id.to_string());
-    let file_path = user_path.join("data.json");
+    let user_folder = Path::new(data_folder).join(user_id.to_string());
+    let file_path = user_folder.join("data.json");
+    let user_folder_size = utils::get_folder_size(&user_folder);
 
     if file_path.exists() {
         // If file exists, assume that it has correct format
@@ -289,7 +305,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
         if let Some(channel) = telegram_data.channels.iter_mut().find(|channel| channel.id == album_id) {
             // Check if a post already exists
             if !channel.posts.iter().any(|post| post.id == post_id) {
-                new_post.add_media(bot, msg, &album_path).await?;
+                new_post.add_media(bot, msg, &album_path, user_folder_size, max_user_folder_size).await?;
                 channel.posts.push(new_post);
                 info!("Post #{} in album #{} for user #{} successfully added to JSON file.", post_id, album_id, user_id);
             } else {
@@ -299,7 +315,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
         }
         else {
             // Album not found, add the new album to the list of albums
-            new_post.add_media(bot, msg, &album_path).await?;
+            new_post.add_media(bot, msg, &album_path, user_folder_size, max_user_folder_size).await?;
             new_channel.posts.push(new_post);
             telegram_data.channels.push(new_channel);
             info!("Post #{} and album #{} for user #{} successfully added to JSON file.", post_id, album_id, user_id);
@@ -310,10 +326,10 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
     }
     else {
         // Create a user dir if it doesn't exist
-        fs::create_dir_all(&user_path)?;
+        fs::create_dir_all(&user_folder)?;
 
         // Create new JSON file for specified user
-        new_post.add_media(bot, msg, &album_path).await?;
+        new_post.add_media(bot, msg, &album_path, user_folder_size, max_user_folder_size).await?;
         new_channel.posts.push(new_post);
         let data = TelegramData {
             channels: vec![new_channel],

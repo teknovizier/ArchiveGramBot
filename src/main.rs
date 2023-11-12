@@ -28,6 +28,7 @@ enum Command {
 struct Config {
     teloxide_token: String,
     data_folder: String,
+    max_user_folder_size: u32,
     result_folder: String,
     log_path: String,
     restrict_access: bool,
@@ -247,7 +248,7 @@ async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     let mut ok_string: Option<&str> = None;
     let mut error_string = String::new();
 
-    match agb::add_new_post(bot.clone(), msg, &config.data_folder).await {
+    match agb::add_new_post(bot.clone(), msg, &config.data_folder, config.max_user_folder_size).await {
         Ok(_) => {
             ok_string = Some("Message added to archive.");
         }
@@ -261,7 +262,8 @@ async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         bot.send_message(chat_id, format!("{}", ok)).await?;
     }
     else {
-        if error_string == "Post already exists!" {
+        if error_string == "Post already exists!" ||
+        error_string == "User folder has exceeded the size limit!" {
             bot.send_message(chat_id, error_string).await?;
         }
         else {

@@ -1,5 +1,6 @@
 teloxide_token = "<Your token here>"
 data_folder = "<Your path to data folder here>"
+max_user_folder_size = 500
 result_folder = "<Your path to result folder here>"
 log_path = "log.txt"
 restrict_access = false

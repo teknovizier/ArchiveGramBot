@@ -4,6 +4,18 @@ use std::path::{Path, PathBuf};
 use zip::CompressionMethod;
 use zip::write::FileOptions;
 
+pub fn get_folder_size(folder_path: &Path) -> u32 {
+    let mut total_size: u32 = 0;
+
+    for entry in walkdir::WalkDir::new(folder_path).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            total_size += entry.metadata().map_or(0, |m| m.len()) as u32;
+        }
+    }
+
+    total_size
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     let src = src.as_ref();
     if src.exists() && src.is_dir() {
