@@ -117,7 +117,7 @@ pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<Stri
 
     if !user_folder.exists() {
         error!("No user data found for user #{}.", user_id);
-        return Ok("No data found.".to_string())
+        return Err("No data found!".into())
     }
 
     // Attempt to remove the specified folder and its contents

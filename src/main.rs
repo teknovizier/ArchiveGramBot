@@ -52,7 +52,7 @@ fn load_config(file: &str) -> Config {
 async fn help(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) { 
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
@@ -63,7 +63,7 @@ async fn help(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
@@ -80,7 +80,7 @@ async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         bot.send_message(msg.chat.id, format!("Available albums:\n\n{}", albums.join("\n"))).await?;
     }
     else {
-        bot.send_message(msg.chat.id, format!("No albums found!")).await?;
+        bot.send_message(msg.chat.id, format!("❗ No albums found!")).await?;
     }
 
     Ok(())
@@ -89,7 +89,7 @@ async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
@@ -111,7 +111,7 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     }
 
     if let Some(counter) = counter {
-        bot.send_message(msg.chat.id, format!("Successfully generated {} albums.", counter)).await?;
+        bot.send_message(msg.chat.id, format!("✅ Successfully generated {} albums.", counter)).await?;
         bot.send_dice(msg.chat.id).await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).await?;
@@ -119,7 +119,7 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         utils::delete_contents_of_folder(&config.result_folder).await?;
     }
     else {
-        bot.send_message(msg.chat.id, format!("Error generating albums!")).await?;
+        bot.send_message(msg.chat.id, format!("❗ Error generating albums!")).await?;
     }
 
     Ok(())
@@ -128,7 +128,7 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
@@ -152,7 +152,7 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
     }
 
     if let Some(_) = counter {
-        bot.send_message(msg.chat.id, format!("Successfully generated album #{}.", album_id)).await?;
+        bot.send_message(msg.chat.id, format!("✅ Successfully generated album #{}.", album_id)).await?;
         bot.send_dice(msg.chat.id).await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).await?;
@@ -161,10 +161,10 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
     }
     else {
         if error_string == "Album not found!" {
-            bot.send_message(msg.chat.id, error_string).await?;
+            bot.send_message(msg.chat.id, format!("❌ {}", error_string)).await?;
         }
         else {
-            bot.send_message(msg.chat.id, format!("Error generating album #{}!", album_id)).await?;
+            bot.send_message(msg.chat.id, format!("❌ Error generating album #{}!", album_id)).await?;
         }
     }
 
@@ -174,12 +174,13 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
 async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
     let user_id = msg.chat.id.0 as u64;
     let mut ok_string: Option<String> = None;
+    let mut error_string = String::new();
 
     match agb::delete_user_folders(user_id, &config.data_folder).await {
         Ok(res) => {
@@ -187,15 +188,22 @@ async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         }
         Err(err) => {
             error!("deleteall(): user #{}: {}", user_id, err);
+            error_string = err.to_string();
         }
     }
 
     if let Some(message) = ok_string {
-        bot.send_message(msg.chat.id, message).await?;
+        bot.send_message(msg.chat.id, format!("✅ {}", message)).await?;
     }
     else {
-        bot.send_message(msg.chat.id, format!("Error deleting data. Please contact bot owners!")).await?;
+        if error_string == "No data found!" {
+            bot.send_message(msg.chat.id, format!("❗ {}", error_string)).await?;
+        }
+        else {
+            bot.send_message(msg.chat.id, format!("❌ Error deleting data. Please contact bot owners!")).await?;
+        }
     }
+
 
     Ok(())
 }
@@ -203,7 +211,7 @@ async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
@@ -220,10 +228,10 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
     }
 
     if let Some(message) = ok_string {
-        bot.send_message(msg.chat.id, message).await?;
+        bot.send_message(msg.chat.id, format!("✅ {}", message)).await?;
     }
     else {
-        bot.send_message(msg.chat.id, format!("Error deleting album. Please check album ID and/or contact bot owners!")).await?;
+        bot.send_message(msg.chat.id, format!("❌ Error deleting album. Please check album ID and/or contact bot owners!")).await?;
     }
 
     Ok(())
@@ -232,7 +240,7 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
 async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
         warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
-        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        bot.send_message(msg.chat.id, "❗ You are not authorized to use this bot.").await?;
         return Ok(())
     }
 
@@ -258,16 +266,16 @@ async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         }
     }
 
-    if let Some(ok) = ok_string {
-        bot.send_message(chat_id, format!("{}", ok)).await?;
+    if let Some(message) = ok_string {
+        bot.send_message(chat_id, format!("✅ {}", message)).await?;
     }
     else {
         if error_string == "Post already exists!" ||
         error_string == "User folder has exceeded the size limit!" {
-            bot.send_message(chat_id, error_string).await?;
+            bot.send_message(chat_id, format!("❗ {}", error_string)).await?;
         }
         else {
-            bot.send_message(chat_id, format!("Error adding message! Please contact bot owners!")).await?;
+            bot.send_message(chat_id, format!("❌ Error adding message! Please contact bot owners!")).await?;
         }
     }
 
