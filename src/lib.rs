@@ -98,13 +98,18 @@ fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &s
     Ok(())
 }
 
-pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<(), Box<dyn Error>> {
+pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<String, Box<dyn Error>> {
     let user_folder = Path::new(data_folder).join(user_id.to_string());
+
+    if !user_folder.exists() {
+        error!("No user data found for user #{}.", user_id);
+        return Ok("No data found.".to_string())
+    }
 
     // Attempt to remove the specified folder and its contents
     match fs::remove_dir_all(user_folder) {
         Ok(_) => {
-            info!("All user data for user #{} successfully deleted.", user_id);
+            info!("All user data for user #{} successfully deleted.", user_id);       
         },
         Err(e) => {
             error!("Error deleting user data for user #{}: {}", user_id, e);
@@ -112,10 +117,10 @@ pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<(), 
         } 
     }
 
-    Ok(())
+    Ok("All data deleted.".to_string())
 }
 
-pub async fn delete_user_album(album_id: i64, user_id: u64, data_folder: &str) -> Result<(), Box<dyn Error>> {
+pub async fn delete_user_album(album_id: i64, user_id: u64, data_folder: &str) -> Result<String, Box<dyn Error>> {
     let file_path = Path::new(data_folder).join(user_id.to_string()).join("data.json");
     let album_folder = Path::new(data_folder).join(user_id.to_string()).join(album_id.to_string());
 
@@ -141,15 +146,14 @@ pub async fn delete_user_album(album_id: i64, user_id: u64, data_folder: &str) -
         telegram_data.channels.remove(index);
     }
     else {
-        error!("Error deleting album #{} info from JSON file for user #{}", album_id, user_id);
-        return Err("error deleting album from JSON file".into());
+        error!("Album #{} not found for user #{}", album_id, user_id);
+        return Ok("Album not found.".to_string())
     }
 
     let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
     fs::write(file_path, updated_telegram_data)?;
     info!("Album #{} for user #{} successfully deleted from JSON file.", album_id, user_id);
-
-    Ok(())
+    Ok("Album deleted".to_string())
 }
 
 pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<Vec<String>, Box<dyn Error>> {

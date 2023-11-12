@@ -146,19 +146,19 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
 
 async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     let user_id = msg.chat.id.0 as u64;
-    let mut ok_string: Option<&str> = None;
+    let mut ok_string: Option<String> = None;
 
     match agb::delete_user_folders(user_id, &config.data_folder).await {
-        Ok(_) => {
-            ok_string = Some("All data deleted.");
+        Ok(res) => {
+            ok_string = Some(res);
         }
         Err(err) => {
             error!("deleteall(): user #{}: {}", user_id, err);
         }
     }
 
-    if let Some(_) = ok_string {
-        bot.send_message(msg.chat.id, format!("All data deleted.")).await?;
+    if let Some(message) = ok_string {
+        bot.send_message(msg.chat.id, message).await?;
     }
     else {
         bot.send_message(msg.chat.id, format!("Error deleting data. Please contact bot owners!")).await?;
@@ -169,19 +169,19 @@ async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 
 async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
     let user_id = msg.chat.id.0 as u64;
-    let mut ok_string: Option<&str> = None;
+    let mut ok_string: Option<String> = None;
 
     match agb::delete_user_album(album_id, user_id, &config.data_folder).await {
-        Ok(_) => {
-            ok_string = Some("All data deleted.");
+        Ok(res) => {
+            ok_string = Some(res);
         }
         Err(err) => {
             error!("delete(): user #{}: {}", user_id, err);
         }
     }
 
-    if let Some(_) = ok_string {
-        bot.send_message(msg.chat.id, format!("Album #{} deleted.", album_id)).await?;
+    if let Some(message) = ok_string {
+        bot.send_message(msg.chat.id, message).await?;
     }
     else {
         bot.send_message(msg.chat.id, format!("Error deleting album. Please check album ID and/or contact bot owners!")).await?;
