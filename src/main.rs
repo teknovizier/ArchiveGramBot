@@ -191,6 +191,10 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
 }
 
 async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    if msg.text() == Some("/start") {
+        return Ok(())
+    }
+
     bot.send_dice(msg.chat.id).await?;
 
     let chat_id = msg.chat.id.clone();
