@@ -12,6 +12,12 @@
             {% for photo in post.photos %}
             <a href="gallery/{{ photo }}"><img src="gallery/{{ photo }}" width="100%" class="mb-1"></a>
             {% endfor %}
+            {% for video in post.videos %}
+            <video width="100%" controls>
+              <source src="gallery/{{ video }}" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+            {% endfor %}
             <div class="card-body">
               <p class="card-text">
                 {{ post.text | linebreaksbr | safe }}

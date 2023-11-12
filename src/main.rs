@@ -172,10 +172,12 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
 }
 
 async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    bot.send_dice(msg.chat.id).await?;
+
     let chat_id = msg.chat.id.clone();
     let mut ok_string: Option<&str> = None;
 
-    match agb::add_new_post(msg, &config.data_folder).await {
+    match agb::add_new_post(bot.clone(), msg, &config.data_folder).await {
         Ok(_) => {
             ok_string = Some("Message added to archive.");
         }

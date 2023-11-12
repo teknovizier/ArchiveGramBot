@@ -5,6 +5,11 @@ A bot designed to store Telegram posts containing attached images and videos and
 
 WORK IN PROGRESS. 
 
+Known limitations:
+-------
+* Supports only Telegram posts with one photo/video for now
+* Only MP4 video format is supported
+
 Setting up
 -------
 

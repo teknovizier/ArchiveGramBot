@@ -1,11 +1,15 @@
 use chrono::prelude::*;
 use log2::*;
+use mime::Mime;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::str::FromStr;
 use std::{fs, fs::File};
 use std::{io, io::prelude::*};
 use std::path::{Path, PathBuf};
 use teloxide::types::Message;
+use teloxide::{net::Download, requests::Requester, Bot};
+use tokio::fs::File as FileAsync; 
 use tera::Context;
 use tera::Tera;
 
@@ -33,6 +37,46 @@ struct TelegramPost {
     photos: Vec<String>,
     videos: Vec<String>,
 }
+
+impl TelegramPost {
+    async fn add_media(&mut self, bot: Bot, msg: Message, album_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+        // Proceed if there is only one photo
+        if let Some(photos) = msg.photo() {
+            // Set post caption
+            self.text = msg.caption().unwrap_or_default().to_string();
+    
+            // Find the largest photo by comparing their sizes
+            let largest_photo = photos.iter().max_by_key(|photo| photo.width * photo.height);
+            if let Some(photo) = largest_photo {
+                match download_media_file(bot, &album_path, &photo.file.id, "jpg").await {
+                    Ok(file_name) => {
+                        self.photos.push(file_name.to_string());
+                    }
+                    Err(_) => return Err("error downloading media file".into())
+                }
+            }
+        }
+        else if let Some(video) = msg.video() {
+            // Set post caption
+            self.text = msg.caption().unwrap_or_default().to_string();
+    
+            // Only MP4 videos are supported at moment
+            if let Some(ref mime_type) = video.mime_type {
+                if mime_type == &Mime::from_str("video/mp4").unwrap() {
+                    match download_media_file(bot, &album_path, &video.file.id, "mp4").await {
+                        Ok(file_name) => {
+                            self.videos.push(file_name.to_string());
+                        }
+                        Err(_) => return Err("error downloading media file".into())
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 
 fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &str) -> io::Result<()> {
     let src_css = Path::new("templates").join("css");
@@ -194,32 +238,42 @@ pub async fn generate_albums(album_id: i64, user_id: u64, data_folder: &str, res
     Ok((counter, album_zip))
 }
 
-pub async fn add_new_post(msg: Message, data_folder: &str) -> Result<(), Box<dyn Error>> {
+async fn download_media_file(bot: Bot, album_path: &Path, file_id: &String, file_extension: &str) -> Result<String, Box<dyn Error>> {
+    let file_name = format!("{}.{}", file_id, file_extension);
+    let file = bot.get_file(file_id).await?;
+    fs::create_dir_all(&album_path)?;
+    let mut dst = FileAsync::create(&album_path.join(&file_name)).await?;
+    bot.download_file(&file.path, &mut dst).await?;
+
+    Ok(file_name)
+}
+
+pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(), Box<dyn Error>> {
     let user_id = msg.chat.id.0 as u64;
     let album_id = msg.forward_from_chat().map_or(0, |chat| chat.id.0 as i64);
     let post_id = msg.forward_from_message_id().unwrap_or(msg.id.0 as i32);
 
-    let new_post = TelegramPost {
+    let album_path = Path::new(data_folder).join(user_id.to_string()).join(album_id.to_string());
+
+    // Do not accept messages with multiple photos/videos
+    if let Some(_) = msg.media_group_id() {
+        return Err("messages with multiple photos/videos aren't supported yet".into());
+    }
+
+    let mut new_post = TelegramPost {
         id: post_id,
         date: msg.date.to_string(),
-        text: {
-            if let Some(_) = msg.photo() {
-                msg.caption().unwrap_or_default().to_string()
-            }
-            else {
-                msg.text().unwrap_or_default().to_string()
-            }
-        },
-        photos: [].to_vec(),
-        videos: [].to_vec()
+        text: msg.text().unwrap_or_default().to_string(),
+        photos: vec![],
+        videos: vec![]
     };
 
-    let new_channel = TelegramChannel {
+    let mut new_channel = TelegramChannel {
         id: album_id,
         title: msg.forward_from_chat().and_then(|chat| chat.title()).unwrap_or_default().to_string(),
         description: msg.forward_from_chat().and_then(|chat| chat.description()).unwrap_or_default().to_string(),
         username: msg.forward_from_chat().and_then(|chat| chat.username()).unwrap_or_default().to_string(),
-        posts: vec![new_post.clone()],
+        posts: vec![],
     };
 
     // Read the file contents
@@ -238,6 +292,7 @@ pub async fn add_new_post(msg: Message, data_folder: &str) -> Result<(), Box<dyn
         if let Some(channel) = telegram_data.channels.iter_mut().find(|channel| channel.id == album_id) {
             // Check if a post already exists
             if !channel.posts.iter().any(|post| post.id == post_id) {
+                new_post.add_media(bot, msg, &album_path).await?;
                 channel.posts.push(new_post);
                 info!("Post #{} in album #{} for user {} successfully added to JSON file.", post_id, album_id, user_id);
             } else {
@@ -247,6 +302,8 @@ pub async fn add_new_post(msg: Message, data_folder: &str) -> Result<(), Box<dyn
         }
         else {
             // Album not found, add the new album to the list of albums
+            new_post.add_media(bot, msg, &album_path).await?;
+            new_channel.posts.push(new_post);
             telegram_data.channels.push(new_channel);
             info!("Post #{} and album #{} for user {} successfully added to JSON file.", post_id, album_id, user_id);
         }
@@ -259,6 +316,8 @@ pub async fn add_new_post(msg: Message, data_folder: &str) -> Result<(), Box<dyn
         fs::create_dir_all(&user_path)?;
 
         // Create new JSON file for specified user
+        new_post.add_media(bot, msg, &album_path).await?;
+        new_channel.posts.push(new_post);
         let data = TelegramData {
             channels: vec![new_channel],
         };
