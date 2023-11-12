@@ -191,7 +191,9 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
 }
 
 async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
-    if msg.text() == Some("/start") {
+    if msg.text() == Some("/start") ||
+    msg.text() == Some("/generate") ||
+    msg.text() == Some("/delete") {
         return Ok(())
     }
 
