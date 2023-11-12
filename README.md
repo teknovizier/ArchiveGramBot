@@ -14,6 +14,7 @@ Setting up
 * Create a new bot using [@Botfather](https://t.me/botfather) to get a token
 * Rename `config-sample.json` to `config.json`
 * Set the values of `teloxide_token`, `data_folder` and `result_folder`
+* You can restrict access to the bot for specific Telegram users by setting `restrict_access` to `true` and specifying user Telegram IDs in `allowed_users`
 
 Usage
 -------

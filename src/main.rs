@@ -30,6 +30,8 @@ struct Config {
     data_folder: String,
     result_folder: String,
     log_path: String,
+    restrict_access: bool,
+    allowed_users: Vec<u64>
 }
 
 fn load_config(file: &str) -> Config {
@@ -46,12 +48,24 @@ fn load_config(file: &str) -> Config {
     return config;
 }
 
-async fn help(bot: Bot, msg: Message) -> HandlerResult {
+async fn help(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) { 
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     bot.send_message(msg.chat.id, Command::descriptions().to_string()).await?;
     Ok(())
 }
 
 async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     let user_id = msg.chat.id.0 as u64;
     let mut albums: Option<Vec<String>> = None;
     match agb::get_album_descriptions(user_id, &config.data_folder).await {
@@ -72,6 +86,12 @@ async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 }
 
 async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     let mut counter: Option<u64> = None;
     let mut zip_file: Option<PathBuf> = None;
 
@@ -105,6 +125,12 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 }
 
 async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     let mut counter: Option<u64> = None;
     let mut zip_file: Option<PathBuf> = None;
     let mut error_string = String::new();
@@ -145,6 +171,12 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
 }
 
 async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     let user_id = msg.chat.id.0 as u64;
     let mut ok_string: Option<String> = None;
 
@@ -168,6 +200,12 @@ async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 }
 
 async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     let user_id = msg.chat.id.0 as u64;
     let mut ok_string: Option<String> = None;
 
@@ -191,6 +229,12 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
 }
 
 async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    if config.restrict_access && !config.allowed_users.contains(&msg.from().unwrap().id.0) {
+        warn!("User #{} is not authorized to use the bot", msg.from().unwrap().id.0);
+        bot.send_message(msg.chat.id, "You are not authorized to use this bot.").await?;
+        return Ok(())
+    }
+
     if msg.text() == Some("/start") ||
     msg.text() == Some("/generate") ||
     msg.text() == Some("/delete") {
@@ -243,7 +287,13 @@ async fn main() {
     let bot = Bot::new(&config.teloxide_token);
 
     let command_handler = teloxide::filter_command::<Command, _>()
-        .branch(dptree::case![Command::Help].endpoint(help))
+        .branch(dptree::case![Command::Help].endpoint({
+            let config = config.clone();
+            move |bot, msg| {
+                let config = config.clone();
+                async move { help(bot, msg, &config).await }
+            }
+        }))
         .branch(dptree::case![Command::ShowAlbums].endpoint({
             let config = config.clone();
             move |bot, msg| {
@@ -279,20 +329,16 @@ async fn main() {
                 async move { delete(bot, msg, &config, album_id).await }
             }
         }));
-
+        
     let handler = Update::filter_message()
         .branch(command_handler)
-        .branch(
-            dptree::filter(|msg: Message| {
-                msg.chat.id != ChatId(0)
-            })
-            .endpoint({
+        .branch(dptree::endpoint({
+            let config = config.clone();
+            move |bot, msg| {
                 let config = config.clone();
-                move |bot, msg| {
-                    let config = config.clone();
-                    async move { reply(bot, msg, &config).await }
-                }
-            }));
+                async move { reply(bot, msg, &config).await }
+            }
+        }));
 
     Dispatcher::builder(bot, handler)
         .enable_ctrlc_handler()
