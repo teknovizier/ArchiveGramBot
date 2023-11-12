@@ -56,7 +56,9 @@ async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     let mut albums: Option<Vec<String>> = None;
     match agb::get_album_descriptions(user_id, &config.data_folder).await {
         Ok(a) => { albums = Some(a); }
-        Err(_) => {}
+        Err(err) => {
+            error!("showalbums(): user #{}: {}", user_id, err);
+        }
     }
 
     if let Some(albums) = albums {
@@ -82,7 +84,9 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
             counter = Some(c.0);
             zip_file = Some(c.1);
         }
-        Err(_) => {}
+        Err(err) => {
+            error!("generateall(): user #{}: {}", user_id, err);
+        }
     }
 
     if let Some(counter) = counter {
@@ -90,6 +94,7 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         bot.send_dice(msg.chat.id).await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).await?;
+        info!("Sent an archive with all albums to user #{}", user_id);
         utils::delete_contents_of_folder(&config.result_folder).await?;
     }
     else {
@@ -102,6 +107,7 @@ async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
     let mut counter: Option<u64> = None;
     let mut zip_file: Option<PathBuf> = None;
+    let mut error_string = String::new();
 
     // Assume that user ID is the same as chat ID
     let user_id = msg.chat.id.0 as u64;
@@ -112,7 +118,10 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
             counter = Some(c.0);
             zip_file = Some(c.1);
         }
-        Err(_) => {}
+        Err(err) => {
+            error!("generate(): user #{}: {}", user_id, err);
+            error_string = err.to_string();
+        }
     }
 
     if let Some(_) = counter {
@@ -120,10 +129,16 @@ async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Han
         bot.send_dice(msg.chat.id).await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).await?;
+        info!("Sent an archive with album #{} to user #{}", album_id, user_id);
         utils::delete_contents_of_folder(&config.result_folder).await?;
     }
     else {
-        bot.send_message(msg.chat.id, format!("Error generating album #{}!", album_id)).await?;
+        if error_string == "Album not found!" {
+            bot.send_message(msg.chat.id, error_string).await?;
+        }
+        else {
+            bot.send_message(msg.chat.id, format!("Error generating album #{}!", album_id)).await?;
+        }
     }
 
     Ok(())
@@ -137,7 +152,9 @@ async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         Ok(_) => {
             ok_string = Some("All data deleted.");
         }
-        Err(_e) => {}
+        Err(err) => {
+            error!("deleteall(): user #{}: {}", user_id, err);
+        }
     }
 
     if let Some(_) = ok_string {
@@ -158,7 +175,9 @@ async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> Handl
         Ok(_) => {
             ok_string = Some("All data deleted.");
         }
-        Err(_e) => {}
+        Err(err) => {
+            error!("delete(): user #{}: {}", user_id, err);
+        }
     }
 
     if let Some(_) = ok_string {
@@ -176,19 +195,29 @@ async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 
     let chat_id = msg.chat.id.clone();
     let mut ok_string: Option<&str> = None;
+    let mut error_string = String::new();
 
     match agb::add_new_post(bot.clone(), msg, &config.data_folder).await {
         Ok(_) => {
             ok_string = Some("Message added to archive.");
         }
-        Err(_e) => {}
+        Err(err) => {
+            error!("reply(): user #{}: {}", chat_id, err);
+            error_string = err.to_string();
+        }
     }
 
     if let Some(ok) = ok_string {
         bot.send_message(chat_id, format!("{}", ok)).await?;
     }
     else {
-        bot.send_message(chat_id, format!("Error adding message! Please contact bot owners!")).await?;
+        if error_string == "Messages with multiple photos/videos aren't supported yet!" ||
+        error_string == "Post already exists!" {
+            bot.send_message(chat_id, error_string).await?;
+        }
+        else {
+            bot.send_message(chat_id, format!("Error adding message! Please contact bot owners!")).await?;
+        }
     }
 
     Ok(())

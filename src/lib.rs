@@ -77,7 +77,6 @@ impl TelegramPost {
     }
 }
 
-
 fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &str) -> io::Result<()> {
     let src_css = Path::new("templates").join("css");
     let src_img = Path::new("templates").join("img");
@@ -105,11 +104,11 @@ pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<(), 
     // Attempt to remove the specified folder and its contents
     match fs::remove_dir_all(user_folder) {
         Ok(_) => {
-            info!("All user data for user {} successfully deleted.", user_id);
+            info!("All user data for user #{} successfully deleted.", user_id);
         },
         Err(e) => {
-            error!("Error deleting user data for user {}: {}", user_id, e);
-            return Err("error deleting data. Please contact bot owners".into())
+            error!("Error deleting user data for user #{}: {}", user_id, e);
+            return Err("error deleting data folder".into())
         } 
     }
 
@@ -123,11 +122,11 @@ pub async fn delete_user_album(album_id: i64, user_id: u64, data_folder: &str) -
     // Attempt to remove the specified folder and its contents
     match fs::remove_dir_all(album_folder) {
         Ok(_) => {
-            info!("Album #{} for user {} successfully deleted.", album_id, user_id);
+            info!("Album #{} for user #{} successfully deleted.", album_id, user_id);
         },
         Err(e) => {
-            error!("Error deleting album #{} for user {}: {}", album_id, user_id, e);
-            return Err("error deleting album. Please check album ID and/or contact bot owners".into())
+            error!("Error deleting album #{} for user #{}: {}", album_id, user_id, e);
+            return Err("error deleting album folder".into())
         } 
     }
 
@@ -140,15 +139,15 @@ pub async fn delete_user_album(album_id: i64, user_id: u64, data_folder: &str) -
 
     if let Some(index) = telegram_data.channels.iter().position(|channel| channel.id == album_id) {
         telegram_data.channels.remove(index);
-        info!("Album #{} for user {} successfully deleted from JSON file.", album_id, user_id);
     }
     else {
-        error!("Error deleting album #{} info from JSON file for user {}", album_id, user_id);
-        return Err("album not found?".into());
+        error!("Error deleting album #{} info from JSON file for user #{}", album_id, user_id);
+        return Err("error deleting album from JSON file".into());
     }
 
     let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
     fs::write(file_path, updated_telegram_data)?;
+    info!("Album #{} for user #{} successfully deleted from JSON file.", album_id, user_id);
 
     Ok(())
 }
@@ -168,7 +167,6 @@ pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<V
     }
 
     if channels_list.is_empty() {
-        error!("No albums found for user for user {}!", user_id);
         return Err("no albums found".into());
     }
 
@@ -201,22 +199,22 @@ pub async fn generate_albums(album_id: i64, user_id: u64, data_folder: &str, res
     // Check if album exists
     let album_exists = &telegram_data.channels.iter().any(|channel| channel.id == album_id);
     if album_id != 0 && !(*album_exists) {
-        error!("Album #{} doesn't exist!", album_id);
+        return Err("Album not found!".into());
     }
     else {
         for channel in telegram_data.channels.iter() {
             if album_id == 0 || album_id == channel.id {
                 match generate_single_album(&tera, channel, user_id, data_folder, result_folder) {
                     Ok(()) => {
-                        info!("Successfully generated album #{} for user {}.", channel.id, user_id);
+                        info!("Successfully generated album #{} for user #{}.", channel.id, user_id);
                         counter += 1;
                     },
                     Err(e) => {
-                        error!("Error generating album #{} for user {}: {}.", channel.id, user_id, e);
+                        error!("Error generating album #{} for user #{}: {}.", channel.id, user_id, e);
                     }
                 };
 
-                if album_id == channel.id {
+                if album_id == channel.id && album_id != 0 {
                     // If the required album is generated, break the loop
                     break;
                 }
@@ -257,7 +255,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
 
     // Do not accept messages with multiple photos/videos
     if let Some(_) = msg.media_group_id() {
-        return Err("messages with multiple photos/videos aren't supported yet".into());
+        return Err("Messages with multiple photos/videos aren't supported yet!".into());
     }
 
     let mut new_post = TelegramPost {
@@ -294,10 +292,10 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
             if !channel.posts.iter().any(|post| post.id == post_id) {
                 new_post.add_media(bot, msg, &album_path).await?;
                 channel.posts.push(new_post);
-                info!("Post #{} in album #{} for user {} successfully added to JSON file.", post_id, album_id, user_id);
+                info!("Post #{} in album #{} for user #{} successfully added to JSON file.", post_id, album_id, user_id);
             } else {
-                warn!("Post #{} already exists in album #{} for user {}.", post_id, album_id, user_id);
-                return Err("post already exists".into())
+                warn!("Post #{} already exists in album #{} for user #{}.", post_id, album_id, user_id);
+                return Err("Post already exists!".into())
             }
         }
         else {
@@ -305,7 +303,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
             new_post.add_media(bot, msg, &album_path).await?;
             new_channel.posts.push(new_post);
             telegram_data.channels.push(new_channel);
-            info!("Post #{} and album #{} for user {} successfully added to JSON file.", post_id, album_id, user_id);
+            info!("Post #{} and album #{} for user #{} successfully added to JSON file.", post_id, album_id, user_id);
         }
 
         let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
@@ -325,9 +323,8 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
         // Serialize the data to JSON
         let telegram_data = serde_json::to_string_pretty(&data)?;
         fs::write(&file_path, telegram_data)?;
-        info!("JSON file for user {} created, post #{} and album #{} successfully added.", user_id, post_id, album_id);
+        info!("JSON file for user #{} created, post #{} and album #{} successfully added.", user_id, post_id, album_id);
     }
 
     Ok(())
 }
-
