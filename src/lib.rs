@@ -253,11 +253,6 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str) -> Result<(
 
     let album_path = Path::new(data_folder).join(user_id.to_string()).join(album_id.to_string());
 
-    // Do not accept messages with multiple photos/videos
-    if let Some(_) = msg.media_group_id() {
-        return Err("Messages with multiple photos/videos aren't supported yet!".into());
-    }
-
     let mut new_post = TelegramPost {
         id: post_id,
         date: msg.date.to_string(),

@@ -215,8 +215,7 @@ async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         bot.send_message(chat_id, format!("{}", ok)).await?;
     }
     else {
-        if error_string == "Messages with multiple photos/videos aren't supported yet!" ||
-        error_string == "Post already exists!" {
+        if error_string == "Post already exists!" {
             bot.send_message(chat_id, error_string).await?;
         }
         else {
