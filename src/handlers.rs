@@ -74,9 +74,10 @@ pub async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResu
 
     if let Some(counter) = counter {
         bot.send_message(msg.chat.id, format!("✅ Successfully generated {} albums.", counter)).await?;
-        bot.send_dice(msg.chat.id).await?;
+        let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).await?;
+        bot.delete_message(msg.chat.id, waiting_msg.id).await?;
         info!("Sent an archive with all albums to user #{}", user_id);
         delete_contents_of_folder(&config.result_folder).await?;
     }
@@ -109,9 +110,10 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) ->
 
     if let Some(_) = counter {
         bot.send_message(msg.chat.id, format!("✅ Successfully generated album #{}.", album_id)).await?;
-        bot.send_dice(msg.chat.id).await?;
+        let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).await?;
+        bot.delete_message(msg.chat.id, waiting_msg.id).await?;
         info!("Sent an archive with album #{} to user #{}", album_id, user_id);
         delete_contents_of_folder(&config.result_folder).await?;
     }
@@ -197,7 +199,7 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         }
     }
 
-    bot.send_dice(msg.chat.id).await?;
+    let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
 
     let chat_id = msg.chat.id.clone();
     let mut ok_string: Option<&str> = None;
@@ -213,6 +215,7 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         }
     }
 
+    bot.delete_message(chat_id, waiting_msg.id).await?;
     if let Some(message) = ok_string {
         bot.send_message(chat_id, format!("✅ {}", message)).await?;
     }
