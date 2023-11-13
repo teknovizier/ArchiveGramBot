@@ -5,15 +5,18 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::str::FromStr;
 use std::{fs, fs::File};
-use std::{io, io::prelude::*};
+use std::io::prelude::*;
 use std::path::{Path, PathBuf};
-use teloxide::types::Message;
-use teloxide::{net::Download, requests::Requester, Bot};
+use teloxide::{
+    net::Download,
+    requests::Requester,
+    types::Message,
+    Bot};
 use tokio::fs::File as FileAsync; 
 use tera::Context;
 use tera::Tera;
 
-pub mod utils;
+use crate::utils::{get_folder_size, copy_dir_all, zip_folder};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TelegramData {
@@ -91,7 +94,7 @@ impl TelegramPost {
     }
 }
 
-fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &str) -> io::Result<()> {
+async fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &str) -> Result<(), Box<dyn Error>> {
     let src_css = Path::new("templates").join("css");
     let src_img = Path::new("templates").join("img");
 
@@ -100,16 +103,26 @@ fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &s
     let dst_media_folder = album_folder.join("gallery");
 
     // Copy the 'css' and 'img' folder
-    utils::copy_dir_all(&src_css, &dst_css)?;
-    utils::copy_dir_all(&src_img, &dst_img)?;
+    copy_dir_all(&src_css, &dst_css)?;
+    copy_dir_all(&src_img, &dst_img)?;
 
     // Copy the media folder
-    utils::copy_dir_all(&src_media_folder, &dst_media_folder)?;
+    copy_dir_all(&src_media_folder, &dst_media_folder)?;
 
     let file_name = album_folder.join("index.html");
     fs::write(&file_name, &data)?;
 
     Ok(())
+}
+
+async fn download_media_file(bot: Bot, album_path: &Path, file_id: &String, file_extension: &str) -> Result<String, Box<dyn Error>> {
+    let file_name = format!("{}.{}", file_id, file_extension);
+    let file = bot.get_file(file_id).await?;
+    fs::create_dir_all(&album_path)?;
+    let mut dst = FileAsync::create(&album_path.join(&file_name)).await?;
+    bot.download_file(&file.path, &mut dst).await?;
+
+    Ok(file_name)
 }
 
 pub async fn delete_user_folders(user_id: u64, data_folder: &str) -> Result<String, Box<dyn Error>> {
@@ -192,13 +205,13 @@ pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<V
     Ok(channels_list)
 }
 
-fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(), Box<dyn Error>> {
+async fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(), Box<dyn Error>> {
     let mut context = Context::new();
     context.insert("channel", &channel);
     let data = tera.render("content.html", &context)?;
     let album_folder = Path::new(result_folder).join(user_id.to_string()).join(channel.id.to_string());
     let src_media_folder = Path::new(data_folder).join(user_id.to_string()).join(channel.id.to_string());
-    create_html_file(&album_folder, &src_media_folder, &data)?;
+    create_html_file(&album_folder, &src_media_folder, &data).await?;
 
     Ok(())
 }
@@ -223,7 +236,7 @@ pub async fn generate_albums(album_id: i64, user_id: u64, data_folder: &str, res
     else {
         for channel in telegram_data.channels.iter() {
             if album_id == 0 || album_id == channel.id {
-                match generate_single_album(&tera, channel, user_id, data_folder, result_folder) {
+                match generate_single_album(&tera, channel, user_id, data_folder, result_folder).await {
                     Ok(()) => {
                         info!("Successfully generated album #{} for user #{}.", channel.id, user_id);
                         counter += 1;
@@ -250,19 +263,9 @@ pub async fn generate_albums(album_id: i64, user_id: u64, data_folder: &str, res
     let result_file = Path::new(result_folder).join(format!("ArchiveGramBot-Archive-{}.zip", Utc::now().format("%Y-%m-%d_%H-%M-%S")));
 
     // Safely use unwrap() here as amount of albums is > 0
-    let album_zip = utils::zip_folder(&user_folder, &result_file).unwrap();
+    let album_zip = zip_folder(&user_folder, &result_file).unwrap();
 
     Ok((counter, album_zip))
-}
-
-async fn download_media_file(bot: Bot, album_path: &Path, file_id: &String, file_extension: &str) -> Result<String, Box<dyn Error>> {
-    let file_name = format!("{}.{}", file_id, file_extension);
-    let file = bot.get_file(file_id).await?;
-    fs::create_dir_all(&album_path)?;
-    let mut dst = FileAsync::create(&album_path.join(&file_name)).await?;
-    bot.download_file(&file.path, &mut dst).await?;
-
-    Ok(file_name)
 }
 
 pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str, max_user_folder_size: u32) -> Result<(), Box<dyn Error>> {
@@ -291,7 +294,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str, max_user_fo
     // Read the file contents
     let user_folder = Path::new(data_folder).join(user_id.to_string());
     let file_path = user_folder.join("data.json");
-    let user_folder_size = utils::get_folder_size(&user_folder);
+    let user_folder_size = get_folder_size(&user_folder);
 
     if file_path.exists() {
         // If file exists, assume that it has correct format
