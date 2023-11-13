@@ -202,6 +202,7 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
 
     let chat_id = msg.chat.id.clone();
+    let msg_id = msg.id.clone();
     let mut ok_string: Option<&str> = None;
     let mut error_string = String::new();
 
@@ -217,15 +218,15 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
 
     bot.delete_message(chat_id, waiting_msg.id).await?;
     if let Some(message) = ok_string {
-        bot.send_message(chat_id, format!("✅ {}", message)).await?;
+        bot.send_message(chat_id, format!("✅ {}", message)).reply_to_message_id(msg_id).await?;
     }
     else {
         if error_string == "Post already exists!" ||
         error_string == "User folder has exceeded the size limit!" {
-            bot.send_message(chat_id, format!("❗ {}", error_string)).await?;
+            bot.send_message(chat_id, format!("❗ {}", error_string)).reply_to_message_id(msg_id).await?;
         }
         else {
-            bot.send_message(chat_id, format!("❌ Error adding message! Please contact bot owners!")).await?;
+            bot.send_message(chat_id, format!("❌ Error adding message! Please contact bot owners!")).reply_to_message_id(msg_id).await?;
         }
     }
 
