@@ -207,10 +207,14 @@ async fn reply_not_authorized(bot: Bot, msg: Message) -> HandlerResult {
 }
 
 async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
-    if msg.text() == Some("/start") ||
-    msg.text() == Some("/generate") ||
-    msg.text() == Some("/delete") {
-        return Ok(())
+    if let Some(text) = msg.text() {
+        if text == "/start" {
+            return Ok(())
+        }
+        else if text.starts_with("/") {
+            bot.send_message(msg.chat.id, format!("❌ Invalid command! Please call /help to see the list of available commands.")).await?;
+            return Ok(())
+        }
     }
 
     bot.send_dice(msg.chat.id).await?;
