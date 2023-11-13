@@ -297,60 +297,33 @@ async fn main() {
     let bot = Bot::new(&config.teloxide_token);
 
     let command_handler = teloxide::filter_command::<Command, _>()
-        .branch(dptree::case![Command::Help].endpoint({
-            let config = config.clone();
-            move |bot, msg| {
-                let config = config.clone();
-                async move { help(bot, msg, &config).await }
-            }
+        .branch(dptree::case![Command::Help].endpoint(|bot, msg, config: Config| async move {
+            help(bot, msg, &config).await
         }))
-        .branch(dptree::case![Command::ShowAlbums].endpoint({
-            let config = config.clone();
-            move |bot, msg| {
-                let config = config.clone();
-                async move { showalbums(bot, msg, &config).await }
-            }
+        .branch(dptree::case![Command::ShowAlbums].endpoint(|bot, msg, config: Config| async move {
+            showalbums(bot, msg, &config).await
         }))
-        .branch(dptree::case![Command::GenerateAll].endpoint({
-            let config = config.clone();
-            move |bot, msg| {
-                let config = config.clone();
-                async move { generateall(bot, msg, &config).await }
-            }
+        .branch(dptree::case![Command::GenerateAll].endpoint(|bot, msg, config: Config| async move {
+            generateall(bot, msg, &config).await
         }))
-        .branch(dptree::case![Command::Generate(album_id)].endpoint({
-            let config = config.clone();
-            move |bot, msg, album_id| {
-                let config = config.clone();
-                async move { generate(bot, msg, &config, album_id).await }
-            }
+        .branch(dptree::case![Command::Generate(album_id)].endpoint(|bot, msg, album_id, config: Config| async move {
+            generate(bot, msg, &config, album_id).await
         }))
-        .branch(dptree::case![Command::DeleteAll].endpoint({
-            let config = config.clone();
-            move |bot, msg| {
-                let config = config.clone();
-                async move { deleteall(bot, msg, &config).await }
-            }
+        .branch(dptree::case![Command::DeleteAll].endpoint(|bot, msg, config: Config| async move {
+            deleteall(bot, msg, &config).await
         }))
-        .branch(dptree::case![Command::Delete(album_id)].endpoint({
-            let config = config.clone();
-            move |bot, msg, album_id| {
-                let config = config.clone();
-                async move { delete(bot, msg, &config, album_id).await }
-            }
+        .branch(dptree::case![Command::Delete(album_id)].endpoint(|bot, msg, album_id, config: Config| async move {
+            delete(bot, msg, &config, album_id).await
         }));
-        
+   
     let handler = Update::filter_message()
         .branch(command_handler)
-        .branch(dptree::endpoint({
-            let config = config.clone();
-            move |bot, msg| {
-                let config = config.clone();
-                async move { reply(bot, msg, &config).await }
-            }
+        .branch(dptree::endpoint(|bot, msg, config: Config| async move {
+            reply(bot, msg, &config).await
         }));
 
     Dispatcher::builder(bot, handler)
+        .dependencies(dptree::deps![config])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
