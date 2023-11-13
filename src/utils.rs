@@ -16,17 +16,16 @@ pub fn get_folder_size(folder_path: &Path) -> u32 {
     total_size
 }
 
-pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
-    let src = src.as_ref();
+pub fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> io::Result<()> {
     if src.exists() && src.is_dir() {
         fs::create_dir_all(&dst)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
             let ty = entry.file_type()?;
             if ty.is_dir() {
-                copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+                copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
             } else {
-                fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+                fs::copy(entry.path(), dst.join(entry.file_name()))?;
             }
         }
     }
