@@ -1,7 +1,20 @@
+# Your Telegram bot token received from @BotFather
 teloxide_token = "<Your token here>"
+
+# The path to the folder where all data will be located
 data_folder = "<Your path to data folder here>"
+
+# Maximum allowed size for the folder where each user's data will be located (in MB)
 max_user_folder_size = 500
+
+# The path to the folder where albums will be generated
 result_folder = "<Your path to result folder here>"
+
+# The path to the bot log file
 log_path = "log.txt"
+
+# Whether to allow access to the bot only for specific users
 restrict_access = false
-allowed_users = [<Your Telegram IDs here>]
+
+# The list of users that will have access to the bot
+allowed_users = []
