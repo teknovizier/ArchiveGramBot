@@ -73,10 +73,10 @@ pub async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResu
     }
 
     if let Some(counter) = counter {
-        bot.send_message(msg.chat.id, format!("✅ Successfully generated {} albums.", counter)).await?;
+        let success_msg = bot.send_message(msg.chat.id, format!("✅ Successfully generated {} albums.", counter)).await?;
         let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
         let input_file = InputFile::file(&zip_file.unwrap());
-        bot.send_document(msg.chat.id, input_file).await?;
+        bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
         bot.delete_message(msg.chat.id, waiting_msg.id).await?;
         info!("Sent an archive with all albums to user #{}", user_id);
         delete_contents_of_folder(&config.result_folder).await?;
@@ -109,10 +109,10 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) ->
     }
 
     if let Some(_) = counter {
-        bot.send_message(msg.chat.id, format!("✅ Successfully generated album #{}.", album_id)).await?;
+        let success_msg = bot.send_message(msg.chat.id, format!("✅ Successfully generated album #{}.", album_id)).await?;
         let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
         let input_file = InputFile::file(&zip_file.unwrap());
-        bot.send_document(msg.chat.id, input_file).await?;
+        bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
         bot.delete_message(msg.chat.id, waiting_msg.id).await?;
         info!("Sent an archive with album #{} to user #{}", album_id, user_id);
         delete_contents_of_folder(&config.result_folder).await?;
