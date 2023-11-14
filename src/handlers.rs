@@ -1,6 +1,6 @@
 use log2::*;
 use std::path::PathBuf;
-use teloxide::{prelude::*, utils::command::BotCommands, types::InputFile};
+use teloxide::{prelude::*, utils::command::BotCommands, types::InputFile, types::ParseMode};
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 use crate::operations::{
@@ -21,12 +21,12 @@ pub enum Command {
     ShowAlbums,
     #[command(description = "generate all albums.")]
     GenerateAll,
-    #[command(description = "generate specified album (add album ID after `generate` command).")]
-    Generate(i64),
+    #[command(description = "generate specified album (add album `username` after `generate` command).")]
+    Generate(String),
     #[command(description = "delete all albums.")]
     DeleteAll,
-    #[command(description = "delete specified album (add album ID after `delete` command).")]
-    Delete(i64),
+    #[command(description = "delete specified album (add album `username` after `delete` command).")]
+    Delete(String),
 }
 
 pub async fn help(bot: Bot, msg: Message) -> HandlerResult {
@@ -45,7 +45,9 @@ pub async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResul
     }
 
     if let Some(albums) = albums {
-        bot.send_message(msg.chat.id, format!("Available albums:\n\n{}", albums.join("\n"))).await?;
+       bot.send_message(msg.chat.id, format!("<strong>Available albums</strong>:\n\n{}", albums.join("\n")))
+       .parse_mode(ParseMode::Html)
+       .await?;
     }
     else {
         bot.send_message(msg.chat.id, format!("❗ No albums found!")).await?;
@@ -62,7 +64,7 @@ pub async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResu
     let user_id = msg.chat.id.0 as u64;
 
     // Generate all albums
-    match generate_albums(0, user_id, &config.data_folder, &config.result_folder).await {
+    match generate_albums("<ALL>".to_string(), user_id, &config.data_folder, &config.result_folder).await {
         Ok(c) => { 
             counter = Some(c.0);
             zip_file = Some(c.1);
@@ -88,7 +90,7 @@ pub async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResu
     Ok(())
 }
 
-pub async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
+pub async fn generate(bot: Bot, msg: Message, config: &Config, username: String) -> HandlerResult {
     let mut counter: Option<u64> = None;
     let mut zip_file: Option<PathBuf> = None;
     let mut error_string = String::new();
@@ -97,7 +99,7 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) ->
     let user_id = msg.chat.id.0 as u64;
 
     // Generate single album
-    match generate_albums(album_id, user_id, &config.data_folder, &config.result_folder).await {
+    match generate_albums(username.clone(), user_id, &config.data_folder, &config.result_folder).await {
         Ok(c) => {
             counter = Some(c.0);
             zip_file = Some(c.1);
@@ -109,12 +111,12 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) ->
     }
 
     if let Some(_) = counter {
-        let success_msg = bot.send_message(msg.chat.id, format!("✅ Successfully generated album #{}.", album_id)).await?;
+        let success_msg = bot.send_message(msg.chat.id, format!("✅ Successfully generated album \"{}\".", username)).await?;
         let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
         let input_file = InputFile::file(&zip_file.unwrap());
         bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
         bot.delete_message(msg.chat.id, waiting_msg.id).await?;
-        info!("Sent an archive with album #{} to user #{}", album_id, user_id);
+        info!("Sent an archive with album \"{}\" to user #{}", username, user_id);
         delete_contents_of_folder(&config.result_folder).await?;
     }
     else {
@@ -122,7 +124,7 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, album_id: i64) ->
             bot.send_message(msg.chat.id, format!("❌ {}", error_string)).await?;
         }
         else {
-            bot.send_message(msg.chat.id, format!("❌ Error generating album #{}!", album_id)).await?;
+            bot.send_message(msg.chat.id, format!("❌ Error generating album \"{}\"!", username)).await?;
         }
     }
 
@@ -160,11 +162,11 @@ pub async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult
     Ok(())
 }
 
-pub async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> HandlerResult {
+pub async fn delete(bot: Bot, msg: Message, config: &Config, username: String) -> HandlerResult {
     let user_id = msg.chat.id.0 as u64;
     let mut ok_string: Option<String> = None;
 
-    match delete_user_album(album_id, user_id, &config.data_folder).await {
+    match delete_user_album(username, user_id, &config.data_folder).await {
         Ok(res) => {
             ok_string = Some(res);
         }
@@ -177,7 +179,7 @@ pub async fn delete(bot: Bot, msg: Message, config: &Config, album_id: i64) -> H
         bot.send_message(msg.chat.id, format!("✅ {}", message)).await?;
     }
     else {
-        bot.send_message(msg.chat.id, format!("❌ Error deleting album. Please check album ID and/or contact bot owners!")).await?;
+        bot.send_message(msg.chat.id, format!("❌ Error deleting album. Please check album username and/or contact bot owners!")).await?;
     }
 
     Ok(())

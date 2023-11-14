@@ -30,14 +30,14 @@ async fn main() {
         .branch(dptree::case![Command::GenerateAll].endpoint(|bot, msg, config: Config| async move {
             handlers::generateall(bot, msg, &config).await
         }))
-        .branch(dptree::case![Command::Generate(album_id)].endpoint(|bot, msg, album_id, config: Config| async move {
-            handlers::generate(bot, msg, &config, album_id).await
+        .branch(dptree::case![Command::Generate(username)].endpoint(|bot, msg, username, config: Config| async move {
+            handlers::generate(bot, msg, &config, username).await
         }))
         .branch(dptree::case![Command::DeleteAll].endpoint(|bot, msg, config: Config| async move {
             handlers::deleteall(bot, msg, &config).await
         }))
-        .branch(dptree::case![Command::Delete(album_id)].endpoint(|bot, msg, album_id, config: Config| async move {
-            handlers::delete(bot, msg, &config, album_id).await
+        .branch(dptree::case![Command::Delete(username)].endpoint(|bot, msg, username, config: Config| async move {
+            handlers::delete(bot, msg, &config, username).await
         }));
    
     let handler = Update::filter_message()
