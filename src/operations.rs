@@ -36,6 +36,7 @@ pub struct TelegramChannel {
 struct TelegramPost {
     id: i32,
     date: String,
+    forward_date: String,
     text: String,
     photos: Vec<String>,
     videos: Vec<String>,
@@ -280,6 +281,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str, max_user_fo
     let mut new_post = TelegramPost {
         id: post_id,
         date: msg.date.to_string(),
+        forward_date: msg.forward_date().unwrap_or(msg.date).to_string(),
         text: msg.text().unwrap_or_default().to_string(),
         photos: vec![],
         videos: vec![]
