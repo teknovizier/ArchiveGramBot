@@ -5,6 +5,7 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 use crate::operations::{
     get_album_descriptions,
+    consolidate_media,
     generate_albums,
     delete_user_folders,
     delete_user_album,
@@ -19,6 +20,8 @@ pub enum Command {
     Help,
     #[command(description = "show identifiers and names for all available albums.")]
     ShowAlbums,
+    #[command(description = "if the original posts contain multiple media files, consolidate them. Action is performed for all albums")]
+    ConsolidateAll,
     #[command(description = "generate all albums.")]
     GenerateAll,
     #[command(description = "generate specified album (add album `username` after `generate` command).")]
@@ -48,6 +51,27 @@ pub async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResul
        bot.send_message(msg.chat.id, format!("<strong>Available albums</strong>:\n\n{}", albums.join("\n")))
        .parse_mode(ParseMode::Html)
        .await?;
+    }
+    else {
+        bot.send_message(msg.chat.id, format!("❗ No albums found!")).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn consolidateall(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
+    let user_id = msg.chat.id.0 as u64;
+    let mut ok_string: Option<String> = None;
+
+    match consolidate_media(user_id, &config.data_folder).await {
+        Ok(res) => { ok_string = Some(res); }
+        Err(err) => {
+            error!("consolidateall(): user #{}: {}", user_id, err);
+        }
+    }
+
+    if let Some(message) = ok_string {
+        bot.send_message(msg.chat.id, format!("✅ {}", message)).await?;
     }
     else {
         bot.send_message(msg.chat.id, format!("❗ No albums found!")).await?;
@@ -157,7 +181,6 @@ pub async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult
             bot.send_message(msg.chat.id, format!("❌ Error deleting data. Please contact bot owners!")).await?;
         }
     }
-
 
     Ok(())
 }

@@ -2,6 +2,7 @@ use chrono::prelude::*;
 use log2::*;
 use mime::Mime;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error;
 use std::str::FromStr;
 use std::{fs, fs::File};
@@ -206,6 +207,56 @@ pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<V
     }
 
     Ok(channels_list)
+}
+
+pub async fn consolidate_media(user_id: u64, data_folder: &str) -> Result<String, Box<dyn Error>> {
+    // Read the file contents
+    let file_path = Path::new(data_folder).join(user_id.to_string()).join("data.json");
+    let mut file = File::open(&file_path)?;
+    let mut json_data = String::new();
+    file.read_to_string(&mut json_data)?;
+
+    let mut telegram_data: TelegramData = serde_json::from_str(&json_data)?;
+
+    if telegram_data.channels.is_empty() {
+        return Err("no albums found".into());
+    }
+
+    // Consolidate posts with the same date and forward_date
+    for channel in &mut telegram_data.channels {
+        let mut similar_posts: HashMap<(String, String), Vec<&mut TelegramPost>> = HashMap::new();
+
+        // Group posts
+        for post in &mut channel.posts {
+            similar_posts
+                .entry((post.date.clone(), post.forward_date.clone()))
+                .or_insert_with(Vec::new)
+                .push(post);
+        }
+
+        // Replace posts with consolidated ones
+        let updated_posts: Vec<TelegramPost> = similar_posts
+            .into_iter()
+            .flat_map(|(_, posts)| {
+                posts.into_iter().fold(None, |acc: Option<TelegramPost>, post: &mut TelegramPost| match acc {
+                    Some(mut updated_post) => {
+                        updated_post.photos.extend_from_slice(&post.photos);
+                        updated_post.videos.extend_from_slice(&post.videos);
+                        Some(updated_post)
+                    }
+                    None => Some(post.clone()),
+                })
+            })
+            .collect();
+
+        channel.posts = updated_posts;
+    }
+
+    let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
+    fs::write(file_path, updated_telegram_data)?;
+    info!("Posts in all albums for user#{} have been successfully consolidated.", user_id);
+
+    Ok("Posts in all albums have been successfully consolidated.".into())
 }
 
 async fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(), Box<dyn Error>> {

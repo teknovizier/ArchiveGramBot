@@ -27,6 +27,9 @@ async fn main() {
         .branch(dptree::case![Command::ShowAlbums].endpoint(|bot, msg, config: Config| async move {
             handlers::showalbums(bot, msg, &config).await
         }))
+        .branch(dptree::case![Command::ConsolidateAll].endpoint(|bot, msg, config: Config| async move {
+            handlers::consolidateall(bot, msg, &config).await
+        }))
         .branch(dptree::case![Command::GenerateAll].endpoint(|bot, msg, config: Config| async move {
             handlers::generateall(bot, msg, &config).await
         }))
