@@ -212,8 +212,8 @@ async fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: 
     let mut context = Context::new();
     context.insert("channel", &channel);
     let data = tera.render("content.html", &context)?;
-    let album_folder = Path::new(result_folder).join(user_id.to_string()).join(channel.id.to_string());
-    let src_media_folder = Path::new(data_folder).join(user_id.to_string()).join(channel.id.to_string());
+    let album_folder = Path::new(result_folder).join(user_id.to_string()).join(channel.username.to_string());
+    let src_media_folder = Path::new(data_folder).join(user_id.to_string()).join(channel.username.to_string());
     create_html_file(&album_folder, &src_media_folder, &data).await?;
 
     Ok(())
