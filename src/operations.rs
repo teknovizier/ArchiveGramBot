@@ -164,7 +164,7 @@ pub async fn delete_user_album(username: String, user_id: u64, data_folder: &str
     }
 
     // Read the file contents
-    let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
+    let mut file = File::open(&file_path)?;
     let mut json_data = String::new();
     file.read_to_string(&mut json_data)?;
 
@@ -179,7 +179,7 @@ pub async fn delete_user_album(username: String, user_id: u64, data_folder: &str
     }
 
     let updated_telegram_data = serde_json::to_string_pretty(&telegram_data)?;
-    fs::write(file_path, updated_telegram_data)?;
+    fs::write(&file_path, updated_telegram_data)?;
     info!("Album \"{}\" for user #{} successfully deleted from JSON file.", username, user_id);
 
     Ok("Album deleted.".to_string())
@@ -187,7 +187,8 @@ pub async fn delete_user_album(username: String, user_id: u64, data_folder: &str
 
 pub async fn get_album_descriptions(user_id: u64, data_folder: &str) -> Result<Vec<String>, Box<dyn Error>> {
     // Read the file contents
-    let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
+    let file_path = Path::new(data_folder).join(user_id.to_string()).join("data.json");
+    let mut file = File::open(&file_path)?;
     let mut json_data = String::new();
     file.read_to_string(&mut json_data)?;
 
@@ -220,7 +221,8 @@ async fn generate_single_album(tera: &Tera, channel: &TelegramChannel, user_id: 
 
 pub async fn generate_albums(username: String, user_id: u64, data_folder: &str, result_folder: &str) -> Result<(u64, PathBuf), Box<dyn Error>> {
     // Read the file contents
-    let mut file = File::open(format!("{}/{}/data.json", data_folder, user_id.to_string()))?;
+    let file_path = Path::new(data_folder).join(user_id.to_string()).join("data.json");
+    let mut file = File::open(&file_path)?;
     let mut json_data = String::new();
     file.read_to_string(&mut json_data)?;
 
@@ -290,7 +292,7 @@ pub async fn add_new_post(bot: Bot, msg: Message, data_folder: &str, max_user_fo
     let mut new_channel = TelegramChannel {
         id: album_id,
         title: msg.forward_from_chat().and_then(|chat| chat.title()).unwrap_or("Default album").to_string(),
-        description: msg.forward_from_chat().and_then(|chat| chat.description()).unwrap_or("Default album for archived messages.").to_string(),
+        description: msg.forward_from_chat().and_then(|chat| chat.description()).unwrap_or_default().to_string(),
         username: album_username.clone(),
         posts: vec![],
     };
