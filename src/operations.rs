@@ -96,6 +96,16 @@ impl TelegramPost {
     }
 }
 
+fn parse_date(date_str: &str) -> DateTime<Utc> {
+    let naive_date = NaiveDateTime::parse_from_str(date_str, "%Y-%m-%d %H:%M:%S UTC").unwrap();
+    DateTime::<Utc>::from_naive_utc_and_offset(naive_date, Utc)
+}
+
+fn round_to_nearest_minute(date: DateTime<Utc>) -> DateTime<Utc> {
+    let seconds = date.timestamp() % 60;
+    date - chrono::Duration::seconds(seconds)
+}
+
 async fn create_html_file(album_folder: &PathBuf, src_media_folder: &PathBuf, data: &str) -> Result<(), Box<dyn Error>> {
     let src_css = Path::new("templates").join("css");
     let src_img = Path::new("templates").join("img");
@@ -224,12 +234,18 @@ pub async fn consolidate_media(user_id: u64, data_folder: &str) -> Result<String
 
     // Consolidate posts with the same date and forward_date
     for channel in &mut telegram_data.channels {
-        let mut similar_posts: HashMap<(String, String), Vec<&mut TelegramPost>> = HashMap::new();
+        let mut similar_posts: HashMap<(DateTime<Utc>, DateTime<Utc>), Vec<&mut TelegramPost>> = HashMap::new();
 
         // Group posts
         for post in &mut channel.posts {
+            let date = parse_date(&post.date);
+            let forward_date = parse_date(&post.forward_date);
+    
+            let date_rounded = round_to_nearest_minute(date);
+            let forward_date_rounded = round_to_nearest_minute(forward_date);
+
             similar_posts
-                .entry((post.date.clone(), post.forward_date.clone()))
+                .entry((date_rounded, forward_date_rounded))
                 .or_insert_with(Vec::new)
                 .push(post);
         }
