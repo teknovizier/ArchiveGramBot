@@ -251,7 +251,7 @@ pub async fn consolidate_media(user_id: u64, data_folder: &str) -> Result<String
         }
 
         // Replace posts with consolidated ones
-        let updated_posts: Vec<TelegramPost> = similar_posts
+        let mut updated_posts: Vec<TelegramPost> = similar_posts
             .into_iter()
             .flat_map(|(_, posts)| {
                 posts.into_iter().fold(None, |acc: Option<TelegramPost>, post: &mut TelegramPost| match acc {
@@ -267,6 +267,9 @@ pub async fn consolidate_media(user_id: u64, data_folder: &str) -> Result<String
                 })
             })
             .collect();
+
+        // Sort posts by date
+        updated_posts.sort_by(|a, b| a.date.cmp(&b.date));
 
         channel.posts = updated_posts;
     }
