@@ -242,6 +242,9 @@ pub async fn consolidate_media(user_id: u64, data_folder: &str) -> Result<String
                     Some(mut updated_post) => {
                         updated_post.photos.extend_from_slice(&post.photos);
                         updated_post.videos.extend_from_slice(&post.videos);
+                        if !post.text.is_empty() {
+                            updated_post.text = post.text.clone();
+                        }
                         Some(updated_post)
                     }
                     None => Some(post.clone()),
