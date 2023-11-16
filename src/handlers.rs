@@ -1,4 +1,5 @@
 use log2::*;
+use std::fs;
 use std::path::PathBuf;
 use teloxide::{prelude::*, utils::command::BotCommands, types::InputFile, types::ParseMode};
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -100,12 +101,20 @@ pub async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResu
 
     if let Some(counter) = counter {
         let success_msg = bot.send_message(msg.chat.id, format!("✅ Successfully generated {} albums.", counter)).await?;
-        let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
-        let input_file = InputFile::file(&zip_file.unwrap());
-        bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
-        bot.delete_message(msg.chat.id, waiting_msg.id).await?;
-        info!("Sent an archive with all albums to user #{}", user_id);
-        delete_contents_of_folder(&config.result_folder).await?;
+        let zip_path = zip_file.unwrap();
+        // Do not try to send an archive that exceed 20 MB
+        if fs::metadata(&zip_path).unwrap().len() > 20 * 1024 * 1024 {
+            warn!("An archive with all albums requested by user #{} exceeds 20 MB size limit and hasn't been sent", user_id);
+            bot.send_message(msg.chat.id, format!("❗ Archive size exceeds 20 MB and cannot be sent automatically. In order to get it, please contact bot owners.")).reply_to_message_id(success_msg.id).await?;
+        }
+        else {
+            let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
+            let input_file = InputFile::file(&zip_path);
+            bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
+            bot.delete_message(msg.chat.id, waiting_msg.id).await?;
+            info!("Sent an archive with all albums to user #{}", user_id);
+            delete_contents_of_folder(&config.result_folder).await?;
+        }
     }
     else {
         bot.send_message(msg.chat.id, format!("❗ Error generating albums!")).await?;
@@ -136,12 +145,20 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, username: String)
 
     if let Some(_) = counter {
         let success_msg = bot.send_message(msg.chat.id, format!("✅ Successfully generated album \"{}\".", username)).await?;
-        let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
-        let input_file = InputFile::file(&zip_file.unwrap());
-        bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
-        bot.delete_message(msg.chat.id, waiting_msg.id).await?;
-        info!("Sent an archive with album \"{}\" to user #{}", username, user_id);
-        delete_contents_of_folder(&config.result_folder).await?;
+        let zip_path = zip_file.unwrap();
+        // Do not try to send an archive that exceed 20 MB
+        if fs::metadata(&zip_path).unwrap().len() > 20 * 1024 * 1024 {
+            warn!("An archive with all albums requested by user #{} exceeds 20 MB size limit and hasn't been sent", user_id);
+            bot.send_message(msg.chat.id, format!("❗ Archive size exceeds 20 MB and cannot be sent automatically. In order to get it, please contact bot owners.")).reply_to_message_id(success_msg.id).await?;
+        }
+        else {
+            let waiting_msg = bot.send_message(msg.chat.id, "⌛️").await?;
+            let input_file = InputFile::file(&zip_path);
+            bot.send_document(msg.chat.id, input_file).reply_to_message_id(success_msg.id).await?;
+            bot.delete_message(msg.chat.id, waiting_msg.id).await?;
+            info!("Sent an archive with album \"{}\" to user #{}", username, user_id);
+            delete_contents_of_folder(&config.result_folder).await?;
+        }
     }
     else {
         if error_string == "Album not found!" {
