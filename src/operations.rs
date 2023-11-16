@@ -56,6 +56,14 @@ impl TelegramPost {
             // Find the largest photo by comparing their sizes
             let largest_photo = photos.iter().max_by_key(|photo| photo.width * photo.height);
             if let Some(photo) = largest_photo {
+                // Photo file size shouldn't exceed 5 MB as stated in 
+                // https://core.telegram.org/bots/api#sending-files
+                const MAX_PHOTO_FIZE_SIZE: u32 = 5 * 1024 * 1024;
+                if photo.file.size > MAX_PHOTO_FIZE_SIZE {
+                    error!("Cannot get photo file \"{}\" as it exceeds the size limit: {} > {}", photo.file.id, photo.file.size, MAX_PHOTO_FIZE_SIZE);
+                    return Err("Photo file size exceeds 5 MB size limit!".into())
+                }
+
                 let new_user_folder_size = photo.file.size + user_folder_size;
                 if new_user_folder_size > max_user_folder_size {
                     error!("User #{} folder has exceeded the size limit: {} > {}", msg.from().unwrap().id.0, new_user_folder_size, max_user_folder_size);
@@ -76,6 +84,14 @@ impl TelegramPost {
             // Only MP4 videos are supported at moment
             if let Some(ref mime_type) = video.mime_type {
                 if mime_type == &Mime::from_str("video/mp4").unwrap() {
+                    // Video file size shouldn't exceed 20 MB as stated in
+                    // https://core.telegram.org/bots/api#sending-files 
+                    const MAX_VIDEO_FIZE_SIZE: u32 = 20 * 1024 * 1024;
+                    if video.file.size > MAX_VIDEO_FIZE_SIZE {
+                        error!("Cannot get video file \"{}\" as it exceeds the size limit: {} > {}", video.file.id, video.file.size, MAX_VIDEO_FIZE_SIZE);
+                        return Err("Video file size exceeds 20 MB size limit!".into())
+                    }
+
                     let new_user_folder_size = video.file.size + user_folder_size;
                     if new_user_folder_size > max_user_folder_size {
                         error!("User #{} folder has exceeded the size limit: {} > {}", msg.from().unwrap().id.0, new_user_folder_size, max_user_folder_size);

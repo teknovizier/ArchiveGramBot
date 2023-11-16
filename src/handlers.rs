@@ -247,7 +247,9 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     }
     else {
         if error_string == "Post already exists!" ||
-        error_string == "User folder has exceeded the size limit!" {
+        error_string == "User folder has exceeded the size limit!" ||
+        error_string == "Photo file size exceeds 5 MB size limit!" ||
+        error_string == "Video file size exceeds 20 MB size limit!" {
             bot.send_message(chat_id, format!("❗ {}", error_string)).reply_to_message_id(msg_id).await?;
         }
         else {

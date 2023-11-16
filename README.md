@@ -7,6 +7,7 @@ Known limitations
 -------
 
 * Only MP4 video format is supported
+* Maximum media file size to be processed by bot is 5 MB for a photo and 20 MB for a video as limited by [Telegram Bot API](https://core.telegram.org/bots/api)
 
 Setting up
 -------
