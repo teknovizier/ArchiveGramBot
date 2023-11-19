@@ -1,9 +1,9 @@
 use serde::Deserialize;
+use std::path::{Path, PathBuf};
 use std::{fs, fs::File};
 use std::{io, io::prelude::*};
-use std::path::{Path, PathBuf};
-use zip::CompressionMethod;
 use zip::write::FileOptions;
+use zip::CompressionMethod;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -13,7 +13,7 @@ pub struct Config {
     pub result_folder: String,
     pub log_path: String,
     pub restrict_access: bool,
-    pub allowed_users: Vec<u64>
+    pub allowed_users: Vec<u64>,
 }
 
 pub fn load_config(file: &str) -> Config {
@@ -27,13 +27,16 @@ pub fn load_config(file: &str) -> Config {
         Err(_) => panic!("Unable to load data from \"{}\"", file),
     };
 
-    return config;
+    config
 }
 
 pub fn get_folder_size(folder_path: &Path) -> u32 {
     let mut total_size: u32 = 0;
 
-    for entry in walkdir::WalkDir::new(folder_path).into_iter().filter_map(|e| e.ok()) {
+    for entry in walkdir::WalkDir::new(folder_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if entry.file_type().is_file() {
             total_size += entry.metadata().map_or(0, |m| m.len()) as u32;
         }
@@ -44,7 +47,7 @@ pub fn get_folder_size(folder_path: &Path) -> u32 {
 
 pub fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> io::Result<()> {
     if src.exists() && src.is_dir() {
-        fs::create_dir_all(&dst)?;
+        fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
             let ty = entry.file_type()?;
@@ -59,19 +62,21 @@ pub fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> io::Result<()> {
     Ok(())
 }
 
-pub fn zip_folder(folder_path: &PathBuf, result_file: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn zip_folder(
+    folder_path: &PathBuf,
+    result_file: &PathBuf,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
     // Create a zip file
-    let file = File::create(&result_file)?;
+    let file = File::create(result_file)?;
     let mut zip = zip::ZipWriter::new(file);
 
     // Walk through the files in the folder
-    let options = FileOptions::default()
-        .compression_method(CompressionMethod::Stored);
-        
+    let options = FileOptions::default().compression_method(CompressionMethod::Stored);
+
     for entry in walkdir::WalkDir::new(folder_path) {
         let entry = entry?;
         let relative_path = entry.path().strip_prefix(folder_path)?;
-        
+
         if entry.file_type().is_file() {
             // Add each file to the zip archive
             zip.start_file(relative_path.to_str().unwrap(), options)?;
