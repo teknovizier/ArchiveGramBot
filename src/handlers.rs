@@ -1,7 +1,7 @@
 use log2::*;
 use regex::Regex;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use teloxide::{prelude::*, types::InputFile, types::ParseMode, utils::command::BotCommands};
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
@@ -9,7 +9,7 @@ use crate::operations::{
     add_new_post, consolidate_media, delete_user_album, delete_user_folders, generate_albums,
     get_album_descriptions,
 };
-use crate::utils::{delete_contents_of_folder, Config};
+use crate::utils::{delete_contents_of_folder, get_folder_size, Config};
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -58,11 +58,17 @@ pub async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResul
     }
 
     if let Some(albums) = albums {
+        let user_folder = Path::new(&config.data_folder).join(user_id.to_string());
+        let user_folder_size: f64 =
+            (get_folder_size(&user_folder) as f64 / (1024.0 * 1024.0) * 100.0).round() / 100.0;
+
         bot.send_message(
             msg.chat.id,
             format!(
-                "<strong>Available albums</strong>:\n\n{}",
-                albums.join("\n")
+                "<strong>Available albums</strong>:\n\n{}\n<strong>Total occupied space:</strong> {}/{} MB",
+                albums.join("\n"),
+                user_folder_size,
+                config.max_user_folder_size
             ),
         )
         .parse_mode(ParseMode::Html)
