@@ -1,4 +1,5 @@
 use log2::*;
+use regex::Regex;
 use std::fs;
 use std::path::PathBuf;
 use teloxide::{prelude::*, types::InputFile, types::ParseMode, utils::command::BotCommands};
@@ -328,21 +329,37 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
         bot.send_message(chat_id, format!("✅ {}", message))
             .reply_to_message_id(msg_id)
             .await?;
-    } else if error_string == "Post already exists!"
-        || error_string == "User folder has exceeded the size limit!"
-        || error_string == "Photo file size exceeds 5 MB size limit!"
-        || error_string == "Video file size exceeds 20 MB size limit!"
-    {
-        bot.send_message(chat_id, format!("❗ {}", error_string))
+    } else {
+        let error_strings: Vec<String> = vec![
+            "Post already exists!".to_string(),
+            "User folder has exceeded \\d+ MB size limit!".to_string(),
+            "Photo file size exceeds \\d+ MB size limit!".to_string(),
+            "Video file size exceeds \\d+ MB size limit!".to_string(),
+        ];
+
+        let mut found = false;
+        for pattern in &error_strings {
+            let re = Regex::new(&format!("^{}$", pattern)).unwrap();
+            if re.is_match(&error_string) {
+                found = true;
+                break;
+            }
+        }
+
+        if found {
+            // Known error message
+            bot.send_message(chat_id, format!("❗ {}", error_string))
+                .reply_to_message_id(msg_id)
+                .await?;
+        } else {
+            // Unknown error message
+            bot.send_message(
+                chat_id,
+                "❌ Error adding message! Please contact bot owners!".to_string(),
+            )
             .reply_to_message_id(msg_id)
             .await?;
-    } else {
-        bot.send_message(
-            chat_id,
-            "❌ Error adding message! Please contact bot owners!".to_string(),
-        )
-        .reply_to_message_id(msg_id)
-        .await?;
+        }
     }
 
     Ok(())

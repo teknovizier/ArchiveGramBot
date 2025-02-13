@@ -46,10 +46,10 @@ impl TelegramPost {
         msg: Message,
         album_path: &Path,
         user_folder_size: u32,
-        max_user_folder_size: u32,
+        max_user_folder_size_in_mb: u32,
     ) -> Result<(), Box<dyn Error>> {
         // Convert megabytes into bytes
-        let max_user_folder_size = max_user_folder_size * 1024 * 1024;
+        let max_user_folder_size = max_user_folder_size_in_mb * 1024 * 1024;
 
         // Proceed if there is only one photo
         if let Some(photos) = msg.photo() {
@@ -61,13 +61,18 @@ impl TelegramPost {
             if let Some(photo) = largest_photo {
                 // Photo file size shouldn't exceed 5 MB as stated in
                 // https://core.telegram.org/bots/api#sending-files
-                const MAX_PHOTO_FIZE_SIZE: u32 = 5 * 1024 * 1024;
-                if photo.file.size > MAX_PHOTO_FIZE_SIZE {
+                const MAX_PHOTO_FIZE_SIZE_IN_MB: u32 = 5;
+                let max_photo_file_size: u32 = MAX_PHOTO_FIZE_SIZE_IN_MB * 1024 * 1024;
+                if photo.file.size > max_photo_file_size {
                     error!(
                         "Cannot get photo file \"{}\" as it exceeds the size limit: {} > {}",
-                        photo.file.id, photo.file.size, MAX_PHOTO_FIZE_SIZE
+                        photo.file.id, photo.file.size, max_photo_file_size
                     );
-                    return Err("Photo file size exceeds 5 MB size limit!".into());
+                    return Err(format!(
+                        "Photo file size exceeds {} MB size limit!",
+                        MAX_PHOTO_FIZE_SIZE_IN_MB
+                    )
+                    .into());
                 }
 
                 let new_user_folder_size = photo.file.size + user_folder_size;
@@ -78,7 +83,11 @@ impl TelegramPost {
                         new_user_folder_size,
                         max_user_folder_size
                     );
-                    return Err("User folder has exceeded the size limit!".into());
+                    return Err(format!(
+                        "User folder has exceeded {} MB size limit!",
+                        max_user_folder_size_in_mb
+                    )
+                    .into());
                 }
                 match download_media_file(bot, album_path, &photo.file.id, "jpg").await {
                     Ok(file_name) => {
@@ -96,13 +105,18 @@ impl TelegramPost {
                 if mime_type == &Mime::from_str("video/mp4").unwrap() {
                     // Video file size shouldn't exceed 20 MB as stated in
                     // https://core.telegram.org/bots/api#sending-files
-                    const MAX_VIDEO_FIZE_SIZE: u32 = 20 * 1024 * 1024;
-                    if video.file.size > MAX_VIDEO_FIZE_SIZE {
+                    const MAX_VIDEO_FIZE_SIZE_IN_MB: u32 = 20;
+                    let max_video_file_size: u32 = MAX_VIDEO_FIZE_SIZE_IN_MB * 1024 * 1024;
+                    if video.file.size > max_video_file_size {
                         error!(
                             "Cannot get video file \"{}\" as it exceeds the size limit: {} > {}",
-                            video.file.id, video.file.size, MAX_VIDEO_FIZE_SIZE
+                            video.file.id, video.file.size, max_video_file_size
                         );
-                        return Err("Video file size exceeds 20 MB size limit!".into());
+                        return Err(format!(
+                            "Video file size exceeds {} MB size limit!",
+                            MAX_VIDEO_FIZE_SIZE_IN_MB
+                        )
+                        .into());
                     }
 
                     let new_user_folder_size = video.file.size + user_folder_size;
@@ -113,7 +127,11 @@ impl TelegramPost {
                             new_user_folder_size,
                             max_user_folder_size
                         );
-                        return Err("User folder has exceeded the size limit!".into());
+                        return Err(format!(
+                            "User folder has exceeded {} MB size limit!",
+                            max_user_folder_size_in_mb
+                        )
+                        .into());
                     }
 
                     match download_media_file(bot, album_path, &video.file.id, "mp4").await {
