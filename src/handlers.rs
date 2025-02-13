@@ -332,7 +332,7 @@ pub async fn reply(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     } else {
         let error_strings: Vec<String> = vec![
             "Post already exists!".to_string(),
-            "User folder has exceeded \\d+ MB size limit!".to_string(),
+            "User folder cannot exceed \\d+ MB size limit!".to_string(),
             "Photo file size exceeds \\d+ MB size limit!".to_string(),
             "Video file size exceeds \\d+ MB size limit!".to_string(),
         ];

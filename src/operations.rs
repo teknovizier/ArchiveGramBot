@@ -4,6 +4,7 @@ use mime::Mime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -14,6 +15,20 @@ use tera::Tera;
 use tokio::fs::File as FileAsync;
 
 use crate::utils::{copy_dir_all, get_folder_size, zip_folder};
+
+pub enum FileType {
+    Photo,
+    Video,
+}
+
+impl fmt::Display for FileType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FileType::Photo => write!(f, "photo"),
+            FileType::Video => write!(f, "video"),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TelegramData {
@@ -48,8 +63,11 @@ impl TelegramPost {
         user_folder_size: u32,
         max_user_folder_size_in_mb: u32,
     ) -> Result<(), Box<dyn Error>> {
-        // Convert megabytes into bytes
-        let max_user_folder_size = max_user_folder_size_in_mb * 1024 * 1024;
+        // Photo file size shouldn't exceed 5 MB and
+        // video file size shouldn't exceed 20 MB as stated in
+        // https://core.telegram.org/bots/api#sending-files
+        const MAX_PHOTO_FIZE_SIZE_IN_MB: u32 = 5;
+        const MAX_VIDEO_FIZE_SIZE_IN_MB: u32 = 20;
 
         // Proceed if there is only one photo
         if let Some(photos) = msg.photo() {
@@ -59,36 +77,16 @@ impl TelegramPost {
             // Find the largest photo by comparing their sizes
             let largest_photo = photos.iter().max_by_key(|photo| photo.width * photo.height);
             if let Some(photo) = largest_photo {
-                // Photo file size shouldn't exceed 5 MB as stated in
-                // https://core.telegram.org/bots/api#sending-files
-                const MAX_PHOTO_FIZE_SIZE_IN_MB: u32 = 5;
-                let max_photo_file_size: u32 = MAX_PHOTO_FIZE_SIZE_IN_MB * 1024 * 1024;
-                if photo.file.size > max_photo_file_size {
-                    error!(
-                        "Cannot get photo file \"{}\" as it exceeds the size limit: {} > {}",
-                        photo.file.id, photo.file.size, max_photo_file_size
-                    );
-                    return Err(format!(
-                        "Photo file size exceeds {} MB size limit!",
-                        MAX_PHOTO_FIZE_SIZE_IN_MB
-                    )
-                    .into());
-                }
+                check_sizes(
+                    msg.from().unwrap().id.0,
+                    FileType::Photo,
+                    &photo.file.id,
+                    photo.file.size,
+                    MAX_PHOTO_FIZE_SIZE_IN_MB,
+                    user_folder_size,
+                    max_user_folder_size_in_mb,
+                )?;
 
-                let new_user_folder_size = photo.file.size + user_folder_size;
-                if new_user_folder_size > max_user_folder_size {
-                    error!(
-                        "User #{} folder has exceeded the size limit: {} > {}",
-                        msg.from().unwrap().id.0,
-                        new_user_folder_size,
-                        max_user_folder_size
-                    );
-                    return Err(format!(
-                        "User folder has exceeded {} MB size limit!",
-                        max_user_folder_size_in_mb
-                    )
-                    .into());
-                }
                 match download_media_file(bot, album_path, &photo.file.id, "jpg").await {
                     Ok(file_name) => {
                         self.photos.push(file_name.to_string());
@@ -103,36 +101,15 @@ impl TelegramPost {
             // Only MP4 videos are supported at moment
             if let Some(ref mime_type) = video.mime_type {
                 if mime_type == &Mime::from_str("video/mp4").unwrap() {
-                    // Video file size shouldn't exceed 20 MB as stated in
-                    // https://core.telegram.org/bots/api#sending-files
-                    const MAX_VIDEO_FIZE_SIZE_IN_MB: u32 = 20;
-                    let max_video_file_size: u32 = MAX_VIDEO_FIZE_SIZE_IN_MB * 1024 * 1024;
-                    if video.file.size > max_video_file_size {
-                        error!(
-                            "Cannot get video file \"{}\" as it exceeds the size limit: {} > {}",
-                            video.file.id, video.file.size, max_video_file_size
-                        );
-                        return Err(format!(
-                            "Video file size exceeds {} MB size limit!",
-                            MAX_VIDEO_FIZE_SIZE_IN_MB
-                        )
-                        .into());
-                    }
-
-                    let new_user_folder_size = video.file.size + user_folder_size;
-                    if new_user_folder_size > max_user_folder_size {
-                        error!(
-                            "User #{} folder has exceeded the size limit: {} > {}",
-                            msg.from().unwrap().id.0,
-                            new_user_folder_size,
-                            max_user_folder_size
-                        );
-                        return Err(format!(
-                            "User folder has exceeded {} MB size limit!",
-                            max_user_folder_size_in_mb
-                        )
-                        .into());
-                    }
+                    check_sizes(
+                        msg.from().unwrap().id.0,
+                        FileType::Video,
+                        &video.file.id,
+                        video.file.size,
+                        MAX_VIDEO_FIZE_SIZE_IN_MB,
+                        user_folder_size,
+                        max_user_folder_size_in_mb,
+                    )?;
 
                     match download_media_file(bot, album_path, &video.file.id, "mp4").await {
                         Ok(file_name) => {
@@ -146,6 +123,47 @@ impl TelegramPost {
 
         Ok(())
     }
+}
+
+fn check_sizes(
+    user_id: u64,
+    file_type: FileType,
+    file_id: &String,
+    file_size: u32,
+    max_file_size_in_mb: u32,
+    user_folder_size: u32,
+    max_user_folder_size_in_mb: u32,
+) -> Result<(), Box<dyn Error>> {
+    // Convert megabytes into bytes
+    let max_user_folder_size = max_user_folder_size_in_mb * 1024 * 1024;
+    let max_file_size: u32 = max_file_size_in_mb * 1024 * 1024;
+    if file_size > max_file_size {
+        error!(
+            "Cannot get {} file \"{}\" as it exceeds the size limit: {} > {}",
+            file_type, file_id, file_size, max_file_size
+        );
+        return Err(format!(
+            "{} file size exceeds {} MB size limit!",
+            file_type.to_string().remove(0).to_uppercase().to_string() + &file_type.to_string()[1..],
+            max_file_size_in_mb
+        )
+        .into());
+    }
+
+    let new_user_folder_size = file_size + user_folder_size;
+    if new_user_folder_size > max_user_folder_size {
+        error!(
+            "User #{} folder cannot exceed the size limit: {} > {}",
+            user_id, new_user_folder_size, max_user_folder_size
+        );
+        return Err(format!(
+            "User folder cannot exceed {} MB size limit!",
+            max_user_folder_size_in_mb
+        )
+        .into());
+    }
+
+    Ok(())
 }
 
 fn parse_date(date_str: &str) -> DateTime<Utc> {
