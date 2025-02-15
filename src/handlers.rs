@@ -9,7 +9,7 @@ use crate::operations::{
     add_new_post, consolidate_media, delete_user_album, delete_user_folders, generate_albums,
     get_album_descriptions,
 };
-use crate::utils::{delete_contents_of_folder, get_folder_size, Config};
+use crate::utils::{convert_to_mb, delete_contents_of_folder, get_folder_size, Config};
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -59,15 +59,14 @@ pub async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResul
 
     if let Some(albums) = albums {
         let user_folder = Path::new(&config.data_folder).join(user_id.to_string());
-        let user_folder_size: f64 =
-            (get_folder_size(&user_folder) as f64 / (1024.0 * 1024.0) * 100.0).round() / 100.0;
+        let user_folder_size_in_mb = convert_to_mb(get_folder_size(&user_folder));
 
         bot.send_message(
             msg.chat.id,
             format!(
                 "<strong>Available albums</strong>:\n\n{}\n<strong>Total occupied space:</strong> {}/{} MB",
                 albums.join("\n"),
-                user_folder_size,
+                user_folder_size_in_mb,
                 config.max_user_folder_size
             ),
         )

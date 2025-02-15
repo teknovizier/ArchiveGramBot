@@ -45,6 +45,10 @@ pub fn get_folder_size(folder_path: &Path) -> u32 {
     total_size
 }
 
+pub fn convert_to_mb(bytes: u32) -> f64 {
+    (bytes as f64 / (1024.0 * 1024.0) * 100.0).round() / 100.0
+}
+
 pub fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> io::Result<()> {
     if src.exists() && src.is_dir() {
         fs::create_dir_all(dst)?;

@@ -14,7 +14,7 @@ use tera::Context;
 use tera::Tera;
 use tokio::fs::File as FileAsync;
 
-use crate::utils::{copy_dir_all, get_folder_size, zip_folder};
+use crate::utils::{convert_to_mb, copy_dir_all, get_folder_size, zip_folder};
 
 pub enum FileType {
     Photo,
@@ -144,7 +144,8 @@ fn check_sizes(
         );
         return Err(format!(
             "{} file size exceeds {} MB size limit!",
-            file_type.to_string().remove(0).to_uppercase().to_string() + &file_type.to_string()[1..],
+            file_type.to_string().remove(0).to_uppercase().to_string()
+                + &file_type.to_string()[1..],
             max_file_size_in_mb
         )
         .into());
@@ -314,8 +315,12 @@ pub async fn get_album_descriptions(
 
     let mut channels_list: Vec<String> = Vec::new();
     for channel in telegram_data.channels.iter() {
+        let channel_folder = Path::new(data_folder)
+            .join(user_id.to_string())
+            .join(channel.username);
+        let user_folder_size_in_mb = convert_to_mb(get_folder_size(&channel_folder));
         let channel_info = format!(
-            "• <ins>{}</ins>\n{} ({} {})\n",
+            "• <ins>{}</ins>\n{} ({} {}, {} MB)\n",
             channel.username,
             channel.title,
             channel.posts.len(),
@@ -323,7 +328,8 @@ pub async fn get_album_descriptions(
                 "post"
             } else {
                 "posts"
-            }
+            },
+            user_folder_size_in_mb
         );
         channels_list.push(channel_info);
     }
