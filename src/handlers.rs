@@ -182,7 +182,7 @@ pub async fn generate(bot: Bot, msg: Message, config: &Config, username: String)
             "❌ Specify album username to be generated!".to_string(),
         )
         .await?;
-        return Ok(())
+        return Ok(());
     }
 
     let mut counter: Option<u64> = None;
@@ -290,7 +290,7 @@ pub async fn delete(bot: Bot, msg: Message, config: &Config, username: String) -
             "❌ Specify album username to be deleted!".to_string(),
         )
         .await?;
-        return Ok(())
+        return Ok(());
     }
 
     let user_id = msg.chat.id.0 as u64;

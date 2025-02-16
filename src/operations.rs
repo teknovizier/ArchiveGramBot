@@ -274,26 +274,6 @@ pub async fn delete_user_album(
     let file_path = Path::new(data_folder)
         .join(user_id.to_string())
         .join("data.json");
-    let album_folder = Path::new(data_folder)
-        .join(user_id.to_string())
-        .join(&username);
-
-    // Attempt to remove the specified folder and its contents
-    match fs::remove_dir_all(album_folder) {
-        Ok(_) => {
-            info!(
-                "Album \"{}\" for user #{} successfully deleted.",
-                username, user_id
-            );
-        }
-        Err(e) => {
-            error!(
-                "Error deleting album \"{}\" for user #{}: {}",
-                username, user_id, e
-            );
-            return Err("error deleting album folder".into());
-        }
-    }
 
     // Read the file contents
     let mut file = File::open(&file_path)?;
@@ -319,6 +299,27 @@ pub async fn delete_user_album(
         "Album \"{}\" for user #{} successfully deleted from JSON file.",
         username, user_id
     );
+
+    let album_folder = Path::new(data_folder)
+    .join(user_id.to_string())
+    .join(&username);
+
+    // Attempt to remove the specified folder and its contents
+    match fs::remove_dir_all(album_folder) {
+        Ok(_) => {
+            info!(
+                "Album \"{}\" for user #{} successfully deleted.",
+                username, user_id
+            );
+        }
+        Err(e) => {
+            error!(
+                "Error deleting album \"{}\" for user #{}: {}",
+                username, user_id, e
+            );
+            return Err("error deleting album folder".into());
+        }
+    }
 
     Ok("Album deleted.".to_string())
 }
