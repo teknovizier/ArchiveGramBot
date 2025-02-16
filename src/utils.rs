@@ -66,6 +66,14 @@ pub fn copy_dir_all(src: &PathBuf, dst: &PathBuf) -> io::Result<()> {
     Ok(())
 }
 
+pub fn truncate_string(s: &str, max_length: usize) -> String {
+    if s.len() > max_length {
+        format!("{}...", &s[..max_length])
+    } else {
+        s.to_string()
+    }
+}
+
 pub fn zip_folder(
     folder_path: &PathBuf,
     result_file: &PathBuf,

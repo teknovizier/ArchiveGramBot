@@ -1,4 +1,5 @@
 use log2::*;
+use prettytable::{row, Table};
 use regex::Regex;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,9 +8,11 @@ type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 use crate::operations::{
     add_new_post, consolidate_media, delete_user_album, delete_user_folders, generate_albums,
-    get_album_descriptions,
+    get_album_descriptions, ChannelInfo,
 };
-use crate::utils::{convert_to_mb, delete_contents_of_folder, get_folder_size, Config};
+use crate::utils::{
+    convert_to_mb, delete_contents_of_folder, get_folder_size, truncate_string, Config,
+};
 
 #[derive(BotCommands, Clone)]
 #[command(
@@ -47,7 +50,7 @@ pub async fn help(bot: Bot, msg: Message) -> HandlerResult {
 
 pub async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResult {
     let user_id = msg.chat.id.0 as u64;
-    let mut albums: Option<Vec<String>> = None;
+    let mut albums: Option<Vec<ChannelInfo>> = None;
     match get_album_descriptions(user_id, &config.data_folder).await {
         Ok(a) => {
             albums = Some(a);
@@ -61,13 +64,26 @@ pub async fn showalbums(bot: Bot, msg: Message, config: &Config) -> HandlerResul
         let user_folder = Path::new(&config.data_folder).join(user_id.to_string());
         let user_folder_size_in_mb = convert_to_mb(get_folder_size(&user_folder));
 
+        // Create a table
+        let mut table = Table::new();
+
+        table.add_row(row!["Username", "Title", "Posts", "Size"]);
+
+        albums.iter().for_each(|album| {
+            table.add_row(row![
+                &album.channel.get_username(),
+                truncate_string(album.channel.get_title(), 12),
+                &album.channel.get_post_count(),
+                &album.user_folder_size_in_mb
+            ]);
+        });
+
         bot.send_message(
             msg.chat.id,
             format!(
-                "<strong>Available albums</strong>:\n\n{}\n<strong>Total occupied space:</strong> {}/{} MB",
-                albums.join("\n"),
-                user_folder_size_in_mb,
-                config.max_user_folder_size
+                "<pre>{}
+Total occupied space: {}/{} MB</pre>",
+                table, user_folder_size_in_mb, config.max_user_folder_size
             ),
         )
         .parse_mode(ParseMode::Html)

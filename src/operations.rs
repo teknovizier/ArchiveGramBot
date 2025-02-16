@@ -30,6 +30,12 @@ impl fmt::Display for FileType {
     }
 }
 
+#[derive(Debug)]
+pub struct ChannelInfo {
+    pub channel: TelegramChannel,
+    pub user_folder_size_in_mb: f64,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TelegramData {
     channels: Vec<TelegramChannel>,
@@ -42,6 +48,20 @@ pub struct TelegramChannel {
     description: String,
     username: String,
     posts: Vec<TelegramPost>,
+}
+
+impl TelegramChannel {
+    pub fn get_username(&self) -> &str {
+        &self.username
+    }
+
+    pub fn get_title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn get_post_count(&self) -> usize {
+        self.posts.len()
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -302,7 +322,7 @@ pub async fn delete_user_album(
 pub async fn get_album_descriptions(
     user_id: u64,
     data_folder: &str,
-) -> Result<Vec<String>, Box<dyn Error>> {
+) -> Result<Vec<ChannelInfo>, Box<dyn Error>> {
     // Read the file contents
     let file_path = Path::new(data_folder)
         .join(user_id.to_string())
@@ -313,24 +333,16 @@ pub async fn get_album_descriptions(
 
     let telegram_data: TelegramData = serde_json::from_str(&json_data)?;
 
-    let mut channels_list: Vec<String> = Vec::new();
+    let mut channels_list: Vec<ChannelInfo> = Vec::new();
     for channel in telegram_data.channels.iter() {
         let channel_folder = Path::new(data_folder)
             .join(user_id.to_string())
-            .join(channel.username);
+            .join(&channel.username);
         let user_folder_size_in_mb = convert_to_mb(get_folder_size(&channel_folder));
-        let channel_info = format!(
-            "• <ins>{}</ins>\n{} ({} {}, {} MB)\n",
-            channel.username,
-            channel.title,
-            channel.posts.len(),
-            if channel.posts.len() == 1 {
-                "post"
-            } else {
-                "posts"
-            },
-            user_folder_size_in_mb
-        );
+        let channel_info = ChannelInfo {
+            channel: channel.clone(),
+            user_folder_size_in_mb,
+        };
         channels_list.push(channel_info);
     }
 
