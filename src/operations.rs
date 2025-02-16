@@ -267,6 +267,10 @@ pub async fn delete_user_album(
     user_id: u64,
     data_folder: &str,
 ) -> Result<String, Box<dyn Error>> {
+    if username.is_empty() {
+        return Err("username is not specified".into());
+    }
+
     let file_path = Path::new(data_folder)
         .join(user_id.to_string())
         .join("data.json");
@@ -451,6 +455,10 @@ pub async fn generate_albums(
     data_folder: &str,
     result_folder: &str,
 ) -> Result<(u64, PathBuf), Box<dyn Error>> {
+    if username.is_empty() {
+        return Err("username is not specified".into());
+    }
+
     // Read the file contents
     let file_path = Path::new(data_folder)
         .join(user_id.to_string())

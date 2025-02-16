@@ -175,6 +175,16 @@ pub async fn generateall(bot: Bot, msg: Message, config: &Config) -> HandlerResu
 }
 
 pub async fn generate(bot: Bot, msg: Message, config: &Config, username: String) -> HandlerResult {
+    // Check if the username is not empty
+    if username.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "❌ Specify album username to be generated!".to_string(),
+        )
+        .await?;
+        return Ok(())
+    }
+
     let mut counter: Option<u64> = None;
     let mut zip_file: Option<PathBuf> = None;
     let mut error_string = String::new();
@@ -273,6 +283,16 @@ pub async fn deleteall(bot: Bot, msg: Message, config: &Config) -> HandlerResult
 }
 
 pub async fn delete(bot: Bot, msg: Message, config: &Config, username: String) -> HandlerResult {
+    // Check if the username is not empty
+    if username.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "❌ Specify album username to be deleted!".to_string(),
+        )
+        .await?;
+        return Ok(())
+    }
+
     let user_id = msg.chat.id.0 as u64;
     let mut ok_string: Option<String> = None;
 
